@@ -20,6 +20,19 @@ export interface CoreStats {
   transferring?: unknown[];
 }
 
+export interface TransferStatus {
+  finished: boolean;
+  success: boolean;
+  error: string;
+  bytes: number;
+  total_bytes: number;
+  speed: number;
+  eta: number | null;
+  transferring: { name: string; percentage?: number; speed?: number; bytes?: number; size?: number }[];
+}
+
+export type TransferOp = "copy" | "sync";
+
 export type Preset = "fast" | "balanced" | "lowmem";
 
 export const PRESETS: { id: Preset; label: string; hint: string }[] = [
@@ -110,12 +123,28 @@ export const api = {
   coreStats: () => invoke<CoreStats>("core_stats"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
+  startTransfer: (src: string, dst: string, operation: TransferOp) =>
+    invoke<number>("start_transfer", { src, dst, operation }),
+  transferStatus: (jobid: number) => invoke<TransferStatus>("transfer_status", { jobid }),
+  stopTransfer: (jobid: number) => invoke<void>("stop_transfer", { jobid }),
 };
 
+export function formatBytes(n?: number): string {
+  const b = n ?? 0;
+  if (b < 1024) return `${b.toFixed(0)} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
 export function formatSpeed(bytesPerSec?: number): string {
-  const b = bytesPerSec ?? 0;
-  if (b < 1024) return `${b.toFixed(0)} B/s`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB/s`;
-  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB/s`;
-  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB/s`;
+  return `${formatBytes(bytesPerSec)}/s`;
+}
+
+export function formatEta(seconds?: number | null): string {
+  if (seconds == null || seconds < 0 || !isFinite(seconds)) return "—";
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m${s % 60}s`;
+  return `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`;
 }

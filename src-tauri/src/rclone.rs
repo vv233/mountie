@@ -420,11 +420,95 @@ pub async fn unmount(
     Ok(())
 }
 
-/// Live transfer stats (bytes, speed, transfers) — used by the status bar and,
-/// later, the transfer panel.
+/// Live transfer stats (bytes, speed, transfers) — used by the status bar.
 #[tauri::command]
 pub async fn core_stats(state: State<'_, RcloneState>) -> Result<Value, String> {
     rc_call(&state, "core/stats", json!({})).await
+}
+
+// ---------------------------------------------------------------------------
+// Direct transfer / sync — the "fast" path that bypasses the mount layer and
+// lets rclone saturate the connection with its own concurrency.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+pub struct TransferStatus {
+    pub finished: bool,
+    pub success: bool,
+    pub error: String,
+    pub bytes: u64,
+    pub total_bytes: u64,
+    pub speed: f64,
+    pub eta: Option<f64>,
+    /// Per-file progress objects, passed straight through to the UI.
+    pub transferring: Value,
+}
+
+/// Start an async copy or sync. `src`/`dst` are rclone fs strings — a remote
+/// (`remote:path`) or a local path. Returns the job id to poll.
+///
+/// - `copy`: add/update files in dst; never deletes.
+/// - `sync`: make dst identical to src (deletes extra files in dst).
+#[tauri::command]
+pub async fn start_transfer(
+    state: State<'_, RcloneState>,
+    src: String,
+    dst: String,
+    operation: String,
+) -> Result<u64, String> {
+    let endpoint = if operation == "sync" {
+        "sync/sync"
+    } else {
+        "sync/copy"
+    };
+    let resp = rc_call(
+        &state,
+        endpoint,
+        json!({ "srcFs": src, "dstFs": dst, "_async": true }),
+    )
+    .await?;
+    resp.get("jobid")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "rclone did not return a job id".to_string())
+}
+
+/// Combined job state + live stats for one transfer job.
+#[tauri::command]
+pub async fn transfer_status(
+    state: State<'_, RcloneState>,
+    jobid: u64,
+) -> Result<TransferStatus, String> {
+    let job = rc_call(&state, "job/status", json!({ "jobid": jobid })).await?;
+    let finished = job.get("finished").and_then(|v| v.as_bool()).unwrap_or(false);
+    let success = job.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+    let error = job
+        .get("error")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    // rclone tags each async job's stats under the group "job/<id>".
+    let stats = rc_call(&state, "core/stats", json!({ "group": format!("job/{jobid}") }))
+        .await
+        .unwrap_or_else(|_| json!({}));
+
+    Ok(TransferStatus {
+        finished,
+        success,
+        error,
+        bytes: stats.get("bytes").and_then(|v| v.as_u64()).unwrap_or(0),
+        total_bytes: stats.get("totalBytes").and_then(|v| v.as_u64()).unwrap_or(0),
+        speed: stats.get("speed").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        eta: stats.get("eta").and_then(|v| v.as_f64()),
+        transferring: stats.get("transferring").cloned().unwrap_or_else(|| json!([])),
+    })
+}
+
+/// Cancel a running transfer.
+#[tauri::command]
+pub async fn stop_transfer(state: State<'_, RcloneState>, jobid: u64) -> Result<(), String> {
+    rc_call(&state, "job/stop", json!({ "jobid": jobid })).await?;
+    Ok(())
 }
 
 /// Best-effort check for WinFsp, which rclone needs to mount on Windows.

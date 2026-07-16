@@ -19,6 +19,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -86,6 +87,9 @@ pub fn run() {
             rclone::mount_remote,
             rclone::unmount,
             rclone::core_stats,
+            rclone::start_transfer,
+            rclone::transfer_status,
+            rclone::stop_transfer,
             rclone::winfsp_installed,
             rclone::get_autostart,
             rclone::set_autostart,

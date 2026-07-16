@@ -10,7 +10,10 @@ import {
   MountInfo,
   CoreStats,
 } from "./api";
+import TransferPanel from "./Transfer";
 import "./App.css";
+
+type View = "mount" | "transfer";
 
 const ALL_LETTERS = "DEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -23,6 +26,7 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autostart, setAutostart] = useState(false);
+  const [view, setView] = useState<View>("mount");
 
   // Wait for the rclone daemon, then do the first load.
   useEffect(() => {
@@ -136,7 +140,23 @@ export default function App() {
         </div>
       )}
 
+      <nav className="tabs">
+        <button
+          className={view === "mount" ? "tab on" : "tab"}
+          onClick={() => setView("mount")}
+        >
+          挂载盘符
+        </button>
+        <button
+          className={view === "transfer" ? "tab on" : "tab"}
+          onClick={() => setView("transfer")}
+        >
+          直传 / 同步
+        </button>
+      </nav>
+
       <main>
+        {view === "mount" && (
         <section>
           <div className="section-head">
             <h2>远程配置</h2>
@@ -163,6 +183,8 @@ export default function App() {
             ))}
           </div>
         </section>
+        )}
+        {view === "transfer" && <TransferPanel remotes={remotes} onError={setError} />}
       </main>
 
       <footer className="footer">
