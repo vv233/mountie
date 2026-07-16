@@ -488,18 +488,25 @@ pub async fn start_transfer(
     src: String,
     dst: String,
     operation: String,
+    turbo: Option<bool>,
 ) -> Result<u64, String> {
     let endpoint = if operation == "sync" {
         "sync/sync"
     } else {
         "sync/copy"
     };
-    let resp = rc_call(
-        &state,
-        endpoint,
-        json!({ "srcFs": src, "dstFs": dst, "_async": true }),
-    )
-    .await?;
+    let mut body = json!({ "srcFs": src, "dstFs": dst, "_async": true });
+    if turbo.unwrap_or(true) {
+        // Auto large-file mode: rclone splits any file at/above the cutoff into
+        // parallel streams (small files are untouched), and runs more transfers
+        // concurrently. This is per-file automatic — no user action needed.
+        body["_config"] = json!({
+            "MultiThreadStreams": 8,
+            "MultiThreadCutoff": "100Mi",
+            "Transfers": 8
+        });
+    }
+    let resp = rc_call(&state, endpoint, body).await?;
     resp.get("jobid")
         .and_then(|v| v.as_u64())
         .ok_or_else(|| "rclone did not return a job id".to_string())

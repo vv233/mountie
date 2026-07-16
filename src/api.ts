@@ -229,8 +229,8 @@ export const api = {
   coreStats: () => invoke<CoreStats>("core_stats"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
-  startTransfer: (src: string, dst: string, operation: TransferOp) =>
-    invoke<number>("start_transfer", { src, dst, operation }),
+  startTransfer: (src: string, dst: string, operation: TransferOp, turbo: boolean) =>
+    invoke<number>("start_transfer", { src, dst, operation, turbo }),
   transferStatus: (jobid: number) => invoke<TransferStatus>("transfer_status", { jobid }),
   stopTransfer: (jobid: number) => invoke<void>("stop_transfer", { jobid }),
 };

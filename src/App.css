@@ -498,10 +498,24 @@ button.link:hover {
   color: var(--muted);
   flex: 1;
 }
+.xfer-turbo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.xfer-turbo input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
 .xfer-hint {
   font-size: 12px;
   color: var(--muted);
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   line-height: 1.5;
 }
 .xfer-jobs {

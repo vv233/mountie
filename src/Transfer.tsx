@@ -43,6 +43,7 @@ export default function TransferPanel({
   const [source, setSource] = useState<Endpoint>({ kind: "remote", path: "", remote: firstRemote });
   const [dest, setDest] = useState<Endpoint>({ kind: "local", path: "", remote: firstRemote });
   const [op, setOp] = useState<TransferOp>("copy");
+  const [turbo, setTurbo] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]);
 
   // Poll live status for every unfinished job once a second.
@@ -70,7 +71,7 @@ export default function TransferPanel({
     }
     if (op === "sync" && !confirm(t("xfer.syncConfirm"))) return;
     try {
-      const id = await api.startTransfer(src, dst, op);
+      const id = await api.startTransfer(src, dst, op, turbo);
       setJobs((prev) => [{ id, label: `${src}  →  ${dst}`, op }, ...prev]);
     } catch (e) {
       onError(String(e));
@@ -108,6 +109,10 @@ export default function TransferPanel({
             {t("xfer.start")}
           </button>
         </div>
+        <label className="xfer-turbo" title={t("xfer.turboHint")}>
+          <input type="checkbox" checked={turbo} onChange={(e) => setTurbo(e.target.checked)} />
+          {t("xfer.turbo")}
+        </label>
         <p className="xfer-hint">{t("xfer.hint")}</p>
       </div>
 

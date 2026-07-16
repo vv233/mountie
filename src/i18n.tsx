@@ -103,6 +103,11 @@ const DICT: Record<string, Entry> = {
   "xfer.copy": { zh: "复制(只增改,不删)", en: "Copy (add/update, never delete)" },
   "xfer.sync": { zh: "同步(目标与源一致,会删多余)", en: "Sync (make destination match source)" },
   "xfer.start": { zh: "开始传输", en: "Start transfer" },
+  "xfer.turbo": { zh: "大文件自动加速", en: "Auto turbo for large files" },
+  "xfer.turboHint": {
+    zh: "大文件自动用多线程并行传输,小文件不受影响",
+    en: "Large files are automatically transferred with parallel streams; small files are unaffected",
+  },
   "xfer.hint": {
     zh: "直传绕过挂载盘符,由 rclone 多线程跑满带宽 —— 大文件批量传输比拖进盘符快得多。",
     en: "Direct transfer bypasses the mounted drive and lets rclone saturate the connection — much faster than dragging large files through a drive.",
