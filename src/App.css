@@ -350,3 +350,31 @@ button.link:hover {
   gap: 10px;
   margin-top: 8px;
 }
+
+/* Footer */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.autostart {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.autostart input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+.foot-hint {
+  flex: 1;
+}

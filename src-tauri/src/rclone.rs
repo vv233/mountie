@@ -3,12 +3,15 @@
 //! mounting, transfers) is delegated to rclone — this module is the thin, typed
 //! bridge the GUI talks to.
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
@@ -61,8 +64,6 @@ pub async fn start(app: &AppHandle) -> Result<(), String> {
             &state.user,
             "--rc-pass",
             &state.pass,
-            // Persist config next to rclone's own default location so remotes
-            // survive restarts and interoperate with a CLI rclone if present.
             "--log-level",
             "NOTICE",
         ]);
@@ -138,7 +139,7 @@ async fn rc_call(state: &RcloneState, path: &str, body: Value) -> Result<Value, 
 }
 
 // ---------------------------------------------------------------------------
-// Types exchanged with the frontend
+// Types exchanged with the frontend / persisted to disk
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize)]
@@ -152,6 +153,14 @@ pub struct RemoteInfo {
 pub struct MountInfo {
     pub fs: String,
     pub mount_point: String,
+}
+
+/// A remembered mount, restored on the next launch.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MountEntry {
+    pub remote: String,
+    pub drive: String,
+    pub preset: String,
 }
 
 /// Performance presets that translate one click into a coherent set of VFS/mount
@@ -186,6 +195,101 @@ fn preset_options(preset: &str, volume_name: &str) -> (Value, Value) {
     });
 
     (vfs, mount)
+}
+
+/// Turn rclone's raw mount error into a human-friendly, actionable message.
+fn friendly_mount_error(raw: &str) -> String {
+    let low = raw.to_lowercase();
+    if low.contains("winfsp") {
+        format!("挂载失败:未检测到 WinFsp,请先安装它再挂载。(原始错误:{raw})")
+    } else if low.contains("not empty") || low.contains("already") || low.contains("in use") {
+        format!("挂载失败:该盘符可能已被占用,换一个盘符试试。(原始错误:{raw})")
+    } else if low.contains("connection refused")
+        || low.contains("no such host")
+        || low.contains("dial ")
+        || low.contains("timeout")
+        || low.contains("i/o timeout")
+    {
+        format!("挂载失败:无法连接远程,请检查地址与网络。(原始错误:{raw})")
+    } else if low.contains("401") || low.contains("403") || low.contains("auth") {
+        format!("挂载失败:认证被拒,请检查用户名/密码。(原始错误:{raw})")
+    } else {
+        format!("挂载失败:{raw}")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Persistence — remember mounts across restarts (app config dir / mounts.json)
+// ---------------------------------------------------------------------------
+
+fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("cannot resolve config dir: {e}"))?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("mounts.json"))
+}
+
+fn load_entries(app: &AppHandle) -> Vec<MountEntry> {
+    store_path(app)
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_entries(app: &AppHandle, entries: &[MountEntry]) {
+    if let Ok(p) = store_path(app) {
+        if let Ok(s) = serde_json::to_string_pretty(entries) {
+            let _ = fs::write(p, s);
+        }
+    }
+}
+
+/// Re-mount everything that was mounted last time. Best-effort: failures (e.g. a
+/// deleted remote) are ignored so a single bad entry can't block startup.
+pub async fn restore_mounts(app: &AppHandle) {
+    let state = app.state::<RcloneState>();
+    for e in load_entries(app) {
+        let _ = do_mount(&state, &e.remote, &e.drive, &e.preset).await;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Core mount logic, shared by the command and the startup restore
+// ---------------------------------------------------------------------------
+
+/// Validate a drive letter and return it uppercased without a trailing colon.
+fn normalize_drive(drive: &str) -> Result<String, String> {
+    let letter = drive.trim().trim_end_matches(':').to_uppercase();
+    if letter.len() != 1 || !letter.chars().next().unwrap().is_ascii_alphabetic() {
+        return Err(format!("无效的盘符:{drive}"));
+    }
+    Ok(letter)
+}
+
+async fn do_mount(
+    state: &RcloneState,
+    remote: &str,
+    letter: &str,
+    preset: &str,
+) -> Result<(), String> {
+    let mount_point = format!("{letter}:");
+    let (vfs_opt, mount_opt) = preset_options(preset, remote);
+    rc_call(
+        state,
+        "mount/mount",
+        json!({
+            "fs": format!("{remote}:"),
+            "mountPoint": mount_point,
+            "vfsOpt": vfs_opt,
+            "mountOpt": mount_opt
+        }),
+    )
+    .await
+    .map_err(|e| friendly_mount_error(&e))?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -244,8 +348,16 @@ pub async fn create_remote(
 }
 
 #[tauri::command]
-pub async fn delete_remote(state: State<'_, RcloneState>, name: String) -> Result<(), String> {
+pub async fn delete_remote(
+    app: AppHandle,
+    state: State<'_, RcloneState>,
+    name: String,
+) -> Result<(), String> {
     rc_call(&state, "config/delete", json!({ "name": name })).await?;
+    // Drop any remembered mount for this remote so it isn't restored later.
+    let mut entries = load_entries(&app);
+    entries.retain(|e| e.remote != name);
+    save_entries(&app, &entries);
     Ok(())
 }
 
@@ -269,40 +381,42 @@ pub async fn list_mounts(state: State<'_, RcloneState>) -> Result<Vec<MountInfo>
     Ok(mounts)
 }
 
-/// Mount `remote` at a Windows drive letter (e.g. "X") using a performance preset.
+/// Mount `remote` at a Windows drive letter using a performance preset, and
+/// remember it so it is restored on the next launch.
 #[tauri::command]
 pub async fn mount_remote(
+    app: AppHandle,
     state: State<'_, RcloneState>,
     remote: String,
     drive: String,
     preset: String,
 ) -> Result<(), String> {
-    // Normalise the drive letter to the "X:" form WinFsp expects.
-    let letter = drive.trim().trim_end_matches(':').to_uppercase();
-    if letter.len() != 1 || !letter.chars().next().unwrap().is_ascii_alphabetic() {
-        return Err(format!("invalid drive letter: {drive}"));
-    }
-    let mount_point = format!("{letter}:");
-    let (vfs_opt, mount_opt) = preset_options(&preset, &remote);
+    let letter = normalize_drive(&drive)?;
+    do_mount(&state, &remote, &letter, &preset).await?;
 
-    rc_call(
-        &state,
-        "mount/mount",
-        json!({
-            "fs": format!("{remote}:"),
-            "mountPoint": mount_point,
-            "vfsOpt": vfs_opt,
-            "mountOpt": mount_opt
-        }),
-    )
-    .await?;
+    let mut entries = load_entries(&app);
+    // One mount per remote and per drive letter.
+    entries.retain(|e| e.drive != letter && e.remote != remote);
+    entries.push(MountEntry {
+        remote,
+        drive: letter,
+        preset,
+    });
+    save_entries(&app, &entries);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn unmount(state: State<'_, RcloneState>, mount_point: String) -> Result<(), String> {
-    rc_call(&state, "mount/unmount", json!({ "mountPoint": mount_point }))
-        .await?;
+pub async fn unmount(
+    app: AppHandle,
+    state: State<'_, RcloneState>,
+    mount_point: String,
+) -> Result<(), String> {
+    rc_call(&state, "mount/unmount", json!({ "mountPoint": mount_point })).await?;
+    let letter = mount_point.trim().trim_end_matches(':').to_uppercase();
+    let mut entries = load_entries(&app);
+    entries.retain(|e| e.drive != letter);
+    save_entries(&app, &entries);
     Ok(())
 }
 
@@ -324,6 +438,23 @@ pub fn winfsp_installed() -> bool {
     #[cfg(not(target_os = "windows"))]
     {
         true
+    }
+}
+
+/// Whether Mountie is set to launch at login.
+#[tauri::command]
+pub fn get_autostart(app: AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+/// Enable/disable launch at login.
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let manager = app.autolaunch();
+    if enabled {
+        manager.enable().map_err(|e| e.to_string())
+    } else {
+        manager.disable().map_err(|e| e.to_string())
     }
 }
 

@@ -22,6 +22,7 @@ export default function App() {
   const [stats, setStats] = useState<CoreStats | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autostart, setAutostart] = useState(false);
 
   // Wait for the rclone daemon, then do the first load.
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function App() {
         if (ok) {
           setReady(true);
           api.winfspInstalled().then(setWinfsp);
+          api.getAutostart().then(setAutostart).catch(() => {});
           refresh();
           return;
         }
@@ -82,6 +84,15 @@ export default function App() {
     try {
       await api.deleteRemote(name);
       refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function toggleAutostart(next: boolean) {
+    try {
+      await api.setAutostart(next);
+      setAutostart(next);
     } catch (e) {
       setError(String(e));
     }
@@ -153,6 +164,19 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      <footer className="footer">
+        <label className="autostart">
+          <input
+            type="checkbox"
+            checked={autostart}
+            onChange={(e) => toggleAutostart(e.target.checked)}
+            disabled={!ready}
+          />
+          开机自启
+        </label>
+        <span className="foot-hint">关闭窗口会最小化到托盘,挂载的盘符保持可用;退出请用托盘菜单</span>
+      </footer>
 
       {showAdd && (
         <AddRemoteModal

@@ -108,6 +108,8 @@ export const api = {
     invoke<void>("mount_remote", { remote, drive, preset }),
   unmount: (mountPoint: string) => invoke<void>("unmount", { mountPoint }),
   coreStats: () => invoke<CoreStats>("core_stats"),
+  getAutostart: () => invoke<boolean>("get_autostart"),
+  setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
 };
 
 export function formatSpeed(bytesPerSec?: number): string {
