@@ -93,7 +93,7 @@ export default function App() {
         <div className="brand">
           <span className="logo">☁️</span>
           <div>
-            <h1>OpenRaiDrive</h1>
+            <h1>Mountie</h1>
             <p className="tagline">把云存储挂载成本地盘符 · 由 rclone 驱动</p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-# OpenRaiDrive
+# Mountie
 
 开源的 RaiDrive 替代品 —— 把云存储 / 远程协议(WebDAV、SFTP、FTP、S3…)一键挂载成 Windows 本地盘符的现代化 GUI。
 
@@ -6,7 +6,7 @@
 
 ## 为什么
 
-RaiDrive 的后端能力早已被开源方案完全覆盖(rclone 支持 70+ 后端;[WinFsp](https://winfsp.dev/) 提供 Windows 用户态文件系统)。RaiDrive 的价值在于易用性 —— OpenRaiDrive 用开源方式复刻这份易用性:
+RaiDrive 的后端能力早已被开源方案完全覆盖(rclone 支持 70+ 后端;[WinFsp](https://winfsp.dev/) 提供 Windows 用户态文件系统)。RaiDrive 的价值在于易用性 —— Mountie 用开源方式复刻这份易用性:
 
 - **快** —— GUI 用 [Tauri](https://tauri.app/)(Rust + Web),几 MB 体积、原生性能;传输由 rclone 的多线程 + VFS 缓存驱动
 - **方便** —— 表单化配置远程、选盘符一键挂载,无需碰命令行

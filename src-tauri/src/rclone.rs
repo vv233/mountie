@@ -37,7 +37,7 @@ impl RcloneState {
         let pass = format!("{:x}{:x}", nanos, std::process::id());
         RcloneState {
             base_url: format!("http://{RC_HOST}:{RC_PORT}"),
-            user: "openraidrive".to_string(),
+            user: "mountie".to_string(),
             pass,
             http: reqwest::Client::new(),
             child: Mutex::new(None),

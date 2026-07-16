@@ -31,7 +31,7 @@ pub fn run() {
             rclone::winfsp_installed,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building OpenRaiDrive")
+        .expect("error while building Mountie")
         .run(|app_handle, event| {
             // Ensure the rclone sidecar is killed when the app exits.
             if let RunEvent::Exit = event {
