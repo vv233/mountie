@@ -81,6 +81,9 @@ const DICT: Record<string, Entry> = {
     en: "OAuth backends (Google Drive / OneDrive / Dropbox) are coming in a later release.",
   },
   "common.cancel": { zh: "取消", en: "Cancel" },
+  "add.test": { zh: "测试连接", en: "Test" },
+  "add.testing": { zh: "测试中…", en: "Testing…" },
+  "add.testOk": { zh: "连接成功 · 根目录 {n} 项", en: "Connected · {n} items in root" },
   "add.create": { zh: "创建", en: "Create" },
   "add.creating": { zh: "创建中…", en: "Creating…" },
 

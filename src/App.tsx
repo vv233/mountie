@@ -382,6 +382,8 @@ function AddRemoteModal({
   const [backendId, setBackendId] = useState(BACKENDS[0].id);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const oauth = isOAuthBackend(backendId);
   const def = BACKENDS.find((b) => b.id === backendId);
@@ -389,6 +391,31 @@ function AddRemoteModal({
 
   function setField(key: string, v: string) {
     setValues((prev) => ({ ...prev, [key]: v }));
+    setTestMsg(null);
+  }
+
+  // Merge the service's preset defaults with the non-empty user fields.
+  function buildParams(): Record<string, string> {
+    const params: Record<string, string> = { ...(def?.defaults ?? {}) };
+    for (const f of fields) {
+      const v = (values[f.key] ?? "").trim();
+      if (v) params[f.key] = v;
+    }
+    return params;
+  }
+
+  async function doTest() {
+    if (!requiredOk) return;
+    setTesting(true);
+    setTestMsg(null);
+    try {
+      const n = await api.testRemote(def?.type ?? backendId, buildParams());
+      setTestMsg({ ok: true, text: t("add.testOk", { n }) });
+    } catch (e) {
+      setTestMsg({ ok: false, text: String(e) });
+    } finally {
+      setTesting(false);
+    }
   }
 
   const nameValid = /^[A-Za-z0-9_.\-]+$/.test(name);
@@ -404,13 +431,7 @@ function AddRemoteModal({
         const token = await api.oauthAuthorize(backendId);
         await api.createRemote(name.trim(), backendId, { token });
       } else {
-        // Merge the service's preset defaults (e.g. vendor) with user fields.
-        const params: Record<string, string> = { ...(def?.defaults ?? {}) };
-        for (const f of fields) {
-          const v = (values[f.key] ?? "").trim();
-          if (v) params[f.key] = v;
-        }
-        await api.createRemote(name.trim(), def?.type ?? backendId, params);
+        await api.createRemote(name.trim(), def?.type ?? backendId, buildParams());
       }
       onCreated();
     } catch (e) {
@@ -442,6 +463,7 @@ function AddRemoteModal({
             onChange={(e) => {
               setBackendId(e.target.value);
               setValues({});
+              setTestMsg(null);
             }}
           >
             <optgroup label={t("group.protocol")}>
@@ -490,14 +512,23 @@ function AddRemoteModal({
           </>
         )}
 
+        {testMsg && (
+          <p className={testMsg.ok ? "test-ok" : "test-err"}>{testMsg.text}</p>
+        )}
+
         <div className="modal-actions">
-          <button onClick={onClose} disabled={busy}>
+          <button onClick={onClose} disabled={busy || testing}>
             {t("common.cancel")}
           </button>
+          {!oauth && (
+            <button onClick={doTest} disabled={busy || testing || !requiredOk}>
+              {testing ? t("add.testing") : t("add.test")}
+            </button>
+          )}
           <button
             className="primary"
             onClick={submit}
-            disabled={busy || !nameValid || !requiredOk || !name}
+            disabled={busy || testing || !nameValid || !requiredOk || !name}
           >
             {busy ? (oauth ? t("add.authorizing") : t("add.creating")) : oauth ? t("add.authorizeCreate") : t("add.create")}
           </button>

@@ -245,6 +245,24 @@ fn friendly_mount_error(raw: &str) -> String {
     }
 }
 
+/// Friendly message for a failed connection test.
+fn friendly_conn_error(raw: &str) -> String {
+    let low = raw.to_lowercase();
+    if low.contains("401") || low.contains("403") || low.contains("auth") || low.contains("login") {
+        format!("认证失败,请检查用户名/密码。({raw})")
+    } else if low.contains("connection refused")
+        || low.contains("no such host")
+        || low.contains("dial ")
+        || low.contains("timeout")
+        || low.contains("i/o timeout")
+        || low.contains("certificate")
+    {
+        format!("连不上服务器,请检查地址/端口/网络。({raw})")
+    } else {
+        format!("连接失败:{raw}")
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Persistence — remember mounts across restarts (app config dir / mounts.json)
 // ---------------------------------------------------------------------------
@@ -377,6 +395,52 @@ pub async fn create_remote(
     )
     .await?;
     Ok(())
+}
+
+/// Test a candidate remote config without persisting it: create a throwaway
+/// remote, list its root, then delete it. Returns the number of top-level
+/// entries on success, or a friendly error on failure.
+#[tauri::command]
+pub async fn test_remote(
+    state: State<'_, RcloneState>,
+    kind: String,
+    params: Value,
+) -> Result<u32, String> {
+    const TEMP: &str = "__mountie_conntest";
+
+    // Create the throwaway remote (obscures any password just like the real one).
+    rc_call(
+        &state,
+        "config/create",
+        json!({
+            "name": TEMP,
+            "type": kind,
+            "parameters": params,
+            "opt": { "nonInteractive": true, "obscure": true }
+        }),
+    )
+    .await
+    .map_err(|e| friendly_conn_error(&e))?;
+
+    // Try listing the root — proves connectivity + auth.
+    let listing = rc_call(
+        &state,
+        "operations/list",
+        json!({ "fs": format!("{TEMP}:"), "remote": "" }),
+    )
+    .await;
+
+    // Always clean up the throwaway remote.
+    let _ = rc_call(&state, "config/delete", json!({ "name": TEMP })).await;
+
+    match listing {
+        Ok(v) => Ok(v
+            .get("list")
+            .and_then(|l| l.as_array())
+            .map(|a| a.len() as u32)
+            .unwrap_or(0)),
+        Err(e) => Err(friendly_conn_error(&e)),
+    }
 }
 
 #[tauri::command]
