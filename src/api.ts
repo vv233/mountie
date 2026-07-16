@@ -72,52 +72,131 @@ export interface BackendField {
   required?: boolean;
 }
 
+export type BackendGroup = "protocol" | "nas";
+
 export interface BackendDef {
-  id: string; // rclone backend type
+  id: string; // unique UI id
   labelKey: string;
+  type: string; // rclone backend type
+  group: BackendGroup;
+  defaults?: Record<string, string>; // params always applied for this service
+  noteKey?: string; // optional setup guidance shown in the form
   fields: BackendField[];
 }
 
+// Credential fields shared by the WebDAV-based NAS services.
+const WEBDAV_LOGIN: BackendField[] = [
+  { key: "user", labelKey: "field.user" },
+  { key: "pass", labelKey: "field.pass", password: true },
+];
+
 export const BACKENDS: BackendDef[] = [
+  // --- Standard protocols ---
   {
     id: "webdav",
     labelKey: "backend.webdav",
+    type: "webdav",
+    group: "protocol",
     fields: [
       { key: "url", labelKey: "field.url", placeholder: "https://dav.example.com/remote.php/dav", required: true },
       { key: "vendor", labelKey: "field.vendor", placeholder: "nextcloud / owncloud / other" },
-      { key: "user", labelKey: "field.user" },
-      { key: "pass", labelKey: "field.pass", password: true },
+      ...WEBDAV_LOGIN,
     ],
   },
   {
     id: "sftp",
     labelKey: "backend.sftp",
+    type: "sftp",
+    group: "protocol",
     fields: [
       { key: "host", labelKey: "field.host", placeholder: "example.com", required: true },
       { key: "port", labelKey: "field.port", placeholder: "22" },
-      { key: "user", labelKey: "field.user" },
-      { key: "pass", labelKey: "field.pass", password: true },
+      ...WEBDAV_LOGIN,
     ],
   },
   {
     id: "ftp",
     labelKey: "backend.ftp",
+    type: "ftp",
+    group: "protocol",
     fields: [
       { key: "host", labelKey: "field.host", placeholder: "example.com", required: true },
       { key: "port", labelKey: "field.port", placeholder: "21" },
-      { key: "user", labelKey: "field.user" },
-      { key: "pass", labelKey: "field.pass", password: true },
+      ...WEBDAV_LOGIN,
     ],
   },
   {
     id: "s3",
     labelKey: "backend.s3",
+    type: "s3",
+    group: "protocol",
     fields: [
       { key: "provider", labelKey: "field.provider", placeholder: "AWS / Minio / Cloudflare / Other" },
       { key: "access_key_id", labelKey: "field.accessKey" },
       { key: "secret_access_key", labelKey: "field.secretKey", password: true },
       { key: "endpoint", labelKey: "field.endpoint", placeholder: "https://s3.example.com" },
       { key: "region", labelKey: "field.region", placeholder: "us-east-1" },
+    ],
+  },
+  // --- NAS / services (all WebDAV under the hood) ---
+  {
+    id: "nextcloud",
+    labelKey: "backend.nextcloud",
+    type: "webdav",
+    group: "nas",
+    defaults: { vendor: "nextcloud" },
+    noteKey: "note.nextcloud",
+    fields: [
+      { key: "url", labelKey: "field.url", placeholder: "https://your-domain/remote.php/dav", required: true },
+      ...WEBDAV_LOGIN,
+    ],
+  },
+  {
+    id: "synology",
+    labelKey: "backend.synology",
+    type: "webdav",
+    group: "nas",
+    defaults: { vendor: "other" },
+    noteKey: "note.synology",
+    fields: [
+      { key: "url", labelKey: "field.url", placeholder: "https://NAS-IP:5006", required: true },
+      ...WEBDAV_LOGIN,
+    ],
+  },
+  {
+    id: "qnap",
+    labelKey: "backend.qnap",
+    type: "webdav",
+    group: "nas",
+    defaults: { vendor: "other" },
+    noteKey: "note.qnap",
+    fields: [
+      { key: "url", labelKey: "field.url", placeholder: "https://NAS-IP:port", required: true },
+      ...WEBDAV_LOGIN,
+    ],
+  },
+  {
+    id: "iptime",
+    labelKey: "backend.iptime",
+    type: "webdav",
+    group: "nas",
+    defaults: { vendor: "other" },
+    noteKey: "note.iptime",
+    fields: [
+      { key: "url", labelKey: "field.url", placeholder: "https://NAS-IP:port", required: true },
+      ...WEBDAV_LOGIN,
+    ],
+  },
+  {
+    id: "asustor",
+    labelKey: "backend.asustor",
+    type: "webdav",
+    group: "nas",
+    defaults: { vendor: "other" },
+    noteKey: "note.asustor",
+    fields: [
+      { key: "url", labelKey: "field.url", placeholder: "https://NAS-IP:port", required: true },
+      ...WEBDAV_LOGIN,
     ],
   },
 ];

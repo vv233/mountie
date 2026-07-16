@@ -53,6 +53,29 @@ const DICT: Record<string, Entry> = {
     en: "Only letters, digits, underscore, dot and hyphen",
   },
   "add.type": { zh: "类型", en: "Type" },
+  "group.protocol": { zh: "标准协议", en: "Protocols" },
+  "group.nas": { zh: "NAS / 服务", en: "NAS / Services" },
+  "group.cloud": { zh: "云盘(需授权)", en: "Cloud (OAuth)" },
+  "note.nextcloud": {
+    zh: "URL 填 Nextcloud/ownCloud 的 WebDAV 地址,通常是 https://你的域名/remote.php/dav",
+    en: "URL is your Nextcloud/ownCloud WebDAV address, usually https://your-domain/remote.php/dav",
+  },
+  "note.synology": {
+    zh: "先在 DSM 启用「WebDAV Server」套件;地址通常是 https://NAS地址:5006(https)或 :5005(http)",
+    en: "Enable the WebDAV Server package in DSM first; URL is usually https://NAS:5006 (https) or :5005 (http)",
+  },
+  "note.qnap": {
+    zh: "先在 QTS 控制台启用 WebDAV;地址形如 https://NAS地址:端口",
+    en: "Enable WebDAV in the QTS control panel first; URL looks like https://NAS:port",
+  },
+  "note.iptime": {
+    zh: "在 ipTIME NAS 上启用 WebDAV 后填写其地址",
+    en: "Enable WebDAV on the ipTIME NAS, then enter its address",
+  },
+  "note.asustor": {
+    zh: "在 ADM 上启用 WebDAV 后填写其地址",
+    en: "Enable WebDAV in ADM, then enter its address",
+  },
   "add.oauthNote": {
     zh: "Google Drive / OneDrive / Dropbox 等需要浏览器授权的后端将在后续版本支持。",
     en: "OAuth backends (Google Drive / OneDrive / Dropbox) are coming in a later release.",
@@ -119,6 +142,11 @@ const DICT: Record<string, Entry> = {
   "backend.sftp": { zh: "SFTP", en: "SFTP" },
   "backend.ftp": { zh: "FTP", en: "FTP" },
   "backend.s3": { zh: "S3 兼容对象存储", en: "S3-compatible object storage" },
+  "backend.nextcloud": { zh: "Nextcloud", en: "Nextcloud" },
+  "backend.synology": { zh: "Synology", en: "Synology" },
+  "backend.qnap": { zh: "QNAP", en: "QNAP" },
+  "backend.iptime": { zh: "ipTIME", en: "ipTIME" },
+  "backend.asustor": { zh: "ASUSTOR", en: "ASUSTOR" },
   "backend.drive": { zh: "Google Drive", en: "Google Drive" },
   "backend.onedrive": { zh: "OneDrive", en: "OneDrive" },
   "add.oauthHint": {

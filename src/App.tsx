@@ -384,7 +384,8 @@ function AddRemoteModal({
   const [busy, setBusy] = useState(false);
 
   const oauth = isOAuthBackend(backendId);
-  const fields = BACKENDS.find((b) => b.id === backendId)?.fields ?? [];
+  const def = BACKENDS.find((b) => b.id === backendId);
+  const fields = def?.fields ?? [];
 
   function setField(key: string, v: string) {
     setValues((prev) => ({ ...prev, [key]: v }));
@@ -403,13 +404,13 @@ function AddRemoteModal({
         const token = await api.oauthAuthorize(backendId);
         await api.createRemote(name.trim(), backendId, { token });
       } else {
-        // Only send non-empty fields so rclone keeps its own defaults.
-        const params: Record<string, string> = {};
+        // Merge the service's preset defaults (e.g. vendor) with user fields.
+        const params: Record<string, string> = { ...(def?.defaults ?? {}) };
         for (const f of fields) {
           const v = (values[f.key] ?? "").trim();
           if (v) params[f.key] = v;
         }
-        await api.createRemote(name.trim(), backendId, params);
+        await api.createRemote(name.trim(), def?.type ?? backendId, params);
       }
       onCreated();
     } catch (e) {
@@ -443,16 +444,27 @@ function AddRemoteModal({
               setValues({});
             }}
           >
-            {BACKENDS.map((b) => (
-              <option key={b.id} value={b.id}>
-                {t(b.labelKey)}
-              </option>
-            ))}
-            {OAUTH_BACKENDS.map((b) => (
-              <option key={b.id} value={b.id}>
-                {t(b.labelKey)}
-              </option>
-            ))}
+            <optgroup label={t("group.protocol")}>
+              {BACKENDS.filter((b) => b.group === "protocol").map((b) => (
+                <option key={b.id} value={b.id}>
+                  {t(b.labelKey)}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={t("group.nas")}>
+              {BACKENDS.filter((b) => b.group === "nas").map((b) => (
+                <option key={b.id} value={b.id}>
+                  {t(b.labelKey)}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={t("group.cloud")}>
+              {OAUTH_BACKENDS.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {t(b.labelKey)}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
 
@@ -474,7 +486,7 @@ function AddRemoteModal({
                 />
               </label>
             ))}
-            <p className="oauth-note">{t("add.oauthNote")}</p>
+            {def?.noteKey && <p className="oauth-note">{t(def.noteKey)}</p>}
           </>
         )}
 
