@@ -89,6 +89,25 @@ If the repository lives in a OneDrive-synced folder, or a real-time antivirus
 - Add the cargo target directory and `~/.cargo` to your antivirus real-time
   exclusions, or pause real-time protection for the first full build.
 
+## Releases
+
+Pushing a version tag builds the Windows installers and publishes them to a
+GitHub Release (created as a draft for review):
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `.github/workflows/release.yml` workflow uses
+[`tauri-action`](https://github.com/tauri-apps/tauri-action) to produce the
+`.msi` and NSIS `.exe` installers and attach them to the release.
+
+**Code signing** is optional and off by default, so installers are unsigned and
+Windows SmartScreen warns on first run. To sign them, add a code-signing
+certificate as repository secrets (`WINDOWS_CERTIFICATE`,
+`WINDOWS_CERTIFICATE_PASSWORD`) and wire them into the release step.
+
 ## Security
 
 The `rclone rcd` daemon binds to `127.0.0.1` only and uses a randomly generated

@@ -1,0 +1,51 @@
+name: release
+
+# Tag a version (e.g. `git tag v0.1.0 && git push origin v0.1.0`) to build the
+# Windows installers and publish them to a GitHub Release (created as a draft
+# so you can review before making it public).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Fetch rclone sidecar
+        shell: pwsh
+        run: pwsh scripts/fetch-rclone.ps1
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing (optional): set these repository secrets to sign the
+          # installers. Without them the build succeeds but is unsigned, so
+          # Windows SmartScreen will warn on first run.
+          #   WINDOWS_CERTIFICATE           – base64 of your .pfx
+          #   WINDOWS_CERTIFICATE_PASSWORD  – its password
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Mountie ${{ github.ref_name }}"
+          releaseBody: "Download the `.msi` or `.exe` below to install. Requires WinFsp to mount drives."
+          releaseDraft: true
+          prerelease: false
