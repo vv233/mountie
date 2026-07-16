@@ -51,7 +51,7 @@ pub async fn start(app: &AppHandle) -> Result<(), String> {
 
     let sidecar = app
         .shell()
-        .sidecar("binaries/rclone")
+        .sidecar("rclone")
         .map_err(|e| format!("failed to locate bundled rclone: {e}"))?
         .args([
             "rcd",

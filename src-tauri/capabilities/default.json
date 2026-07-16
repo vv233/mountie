@@ -10,7 +10,7 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "binaries/rclone",
+          "name": "rclone",
           "sidecar": true,
           "args": true
         }
