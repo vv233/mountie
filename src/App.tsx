@@ -34,6 +34,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [autostart, setAutostart] = useState(false);
   const [view, setView] = useState<View>("mount");
+  const [editRemote, setEditRemote] = useState<RemoteInfo | null>(null);
 
   // Wait for the rclone daemon, then do the first load.
   useEffect(() => {
@@ -189,6 +190,7 @@ export default function App() {
                   mountPoint={mountPointFor(r.name)}
                   freeLetters={freeLetters}
                   onDelete={() => handleDelete(r.name)}
+                  onEdit={() => setEditRemote(r)}
                   onChanged={refresh}
                   onError={setError}
                 />
@@ -222,6 +224,18 @@ export default function App() {
           onError={setError}
         />
       )}
+
+      {editRemote && (
+        <EditRemoteModal
+          remote={editRemote}
+          onClose={() => setEditRemote(null)}
+          onSaved={() => {
+            setEditRemote(null);
+            refresh();
+          }}
+          onError={setError}
+        />
+      )}
     </div>
   );
 }
@@ -231,6 +245,7 @@ function RemoteCard({
   mountPoint,
   freeLetters,
   onDelete,
+  onEdit,
   onChanged,
   onError,
 }: {
@@ -238,6 +253,7 @@ function RemoteCard({
   mountPoint: string | null;
   freeLetters: string[];
   onDelete: () => void;
+  onEdit: () => void;
   onChanged: () => void;
   onError: (e: string) => void;
 }) {
@@ -287,9 +303,16 @@ function RemoteCard({
           <div className="card-name">{remote.name}</div>
           <span className="badge">{remote.type}</span>
         </div>
-        <button className="icon-btn" title={t("remotes.deleteTitle")} onClick={onDelete} disabled={busy}>
-          🗑
-        </button>
+        <div className="card-actions">
+          {!isOAuthBackend(remote.type) && (
+            <button className="icon-btn" title={t("remotes.editTitle")} onClick={onEdit} disabled={busy}>
+              ✎
+            </button>
+          )}
+          <button className="icon-btn" title={t("remotes.deleteTitle")} onClick={onDelete} disabled={busy}>
+            🗑
+          </button>
+        </div>
       </div>
 
       {mounted ? (
@@ -538,6 +561,105 @@ function AddRemoteModal({
             disabled={busy || testing || !nameValid || !requiredOk || !name}
           >
             {busy ? (oauth ? t("add.authorizing") : t("add.creating")) : oauth ? t("add.authorizeCreate") : t("add.create")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditRemoteModal({
+  remote,
+  onClose,
+  onSaved,
+  onError,
+}: {
+  remote: RemoteInfo;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (e: string) => void;
+}) {
+  const { t } = useI18n();
+  // Base protocol/cloud def for this remote's rclone type (id === type).
+  const def = BACKENDS.find((b) => b.id === remote.type);
+  const fields = def?.fields ?? [];
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .getRemoteConfig(remote.name)
+      .then((cfg) => {
+        const v: Record<string, string> = {};
+        for (const f of fields) {
+          // Pre-fill non-secret fields; passwords come back obscured, leave blank.
+          if (!f.password && cfg[f.key] != null) v[f.key] = String(cfg[f.key]);
+        }
+        setValues(v);
+        setLoaded(true);
+      })
+      .catch((e) => {
+        onError(String(e));
+        setLoaded(true);
+      });
+  }, []);
+
+  function setField(key: string, val: string) {
+    setValues((prev) => ({ ...prev, [key]: val }));
+  }
+
+  // Required non-password fields must be present; a blank password keeps the old one.
+  const requiredOk = fields
+    .filter((f) => f.required && !f.password)
+    .every((f) => (values[f.key] ?? "").trim().length > 0);
+
+  async function save() {
+    if (!requiredOk) return;
+    setBusy(true);
+    try {
+      const params: Record<string, string> = {};
+      for (const f of fields) {
+        const val = (values[f.key] ?? "").trim();
+        if (val) params[f.key] = val; // only send provided fields
+      }
+      await api.updateRemote(remote.name, params);
+      onSaved();
+    } catch (e) {
+      onError(String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>
+          {t("edit.title")} · {remote.name}
+        </h2>
+
+        {loaded &&
+          fields.map((f) => (
+            <label className="field" key={f.key}>
+              <span>
+                {t(f.labelKey)}
+                {f.required && !f.password && <span className="req">*</span>}
+              </span>
+              <input
+                type={f.password ? "password" : "text"}
+                value={values[f.key] ?? ""}
+                placeholder={f.password ? t("edit.passKeep") : f.placeholder}
+                onChange={(e) => setField(f.key, e.target.value)}
+              />
+            </label>
+          ))}
+
+        <div className="modal-actions">
+          <button onClick={onClose} disabled={busy}>
+            {t("common.cancel")}
+          </button>
+          <button className="primary" onClick={save} disabled={busy || !loaded || !requiredOk}>
+            {busy ? t("edit.saving") : t("edit.save")}
           </button>
         </div>
       </div>

@@ -247,6 +247,9 @@ export const api = {
   oauthAuthorize: (kind: string) => invoke<string>("oauth_authorize", { kind }),
   testRemote: (kind: string, params: Record<string, string>) =>
     invoke<number>("test_remote", { kind, params }),
+  getRemoteConfig: (name: string) => invoke<Record<string, string>>("get_remote_config", { name }),
+  updateRemote: (name: string, params: Record<string, string>) =>
+    invoke<void>("update_remote", { name, params }),
   deleteRemote: (name: string) => invoke<void>("delete_remote", { name }),
   listMounts: () => invoke<MountInfo[]>("list_mounts"),
   mountRemote: (remote: string, drive: string, preset: Preset, custom?: VfsOptions | null) =>

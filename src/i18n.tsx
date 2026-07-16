@@ -32,6 +32,11 @@ const DICT: Record<string, Entry> = {
     en: 'Delete remote "{name}"? (Cloud data is not affected.)',
   },
   "remotes.deleteTitle": { zh: "删除", en: "Delete" },
+  "remotes.editTitle": { zh: "编辑", en: "Edit" },
+  "edit.title": { zh: "编辑远程", en: "Edit remote" },
+  "edit.save": { zh: "保存", en: "Save" },
+  "edit.saving": { zh: "保存中…", en: "Saving…" },
+  "edit.passKeep": { zh: "留空则保持不变", en: "Leave blank to keep current" },
 
   "mount.drive": { zh: "盘符", en: "Drive" },
   "mount.preset": { zh: "性能预设", en: "Preset" },

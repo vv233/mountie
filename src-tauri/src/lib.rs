@@ -83,6 +83,8 @@ pub fn run() {
             rclone::list_remotes,
             rclone::create_remote,
             rclone::test_remote,
+            rclone::get_remote_config,
+            rclone::update_remote,
             rclone::delete_remote,
             rclone::list_mounts,
             rclone::mount_remote,

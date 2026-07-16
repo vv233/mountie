@@ -443,6 +443,37 @@ pub async fn test_remote(
     }
 }
 
+/// Fetch a remote's stored config (used to pre-fill the edit form). Passwords
+/// come back obscured — the UI leaves those fields blank.
+#[tauri::command]
+pub async fn get_remote_config(
+    state: State<'_, RcloneState>,
+    name: String,
+) -> Result<Value, String> {
+    rc_call(&state, "config/get", json!({ "name": name })).await
+}
+
+/// Update an existing remote's parameters. Only the given keys change; others
+/// are kept, so leaving a password blank preserves the existing one.
+#[tauri::command]
+pub async fn update_remote(
+    state: State<'_, RcloneState>,
+    name: String,
+    params: Value,
+) -> Result<(), String> {
+    rc_call(
+        &state,
+        "config/update",
+        json!({
+            "name": name,
+            "parameters": params,
+            "opt": { "nonInteractive": true, "obscure": true }
+        }),
+    )
+    .await?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn delete_remote(
     app: AppHandle,
