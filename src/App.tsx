@@ -5,6 +5,8 @@ import {
   BACKENDS,
   CACHE_MODES,
   formatSpeed,
+  isOAuthBackend,
+  OAUTH_BACKENDS,
   PRESETS,
   PRESET_DEFAULTS,
   Preset,
@@ -381,28 +383,34 @@ function AddRemoteModal({
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const backend = BACKENDS.find((b) => b.id === backendId)!;
+  const oauth = isOAuthBackend(backendId);
+  const fields = BACKENDS.find((b) => b.id === backendId)?.fields ?? [];
 
   function setField(key: string, v: string) {
     setValues((prev) => ({ ...prev, [key]: v }));
   }
 
   const nameValid = /^[A-Za-z0-9_.\-]+$/.test(name);
-  const requiredOk = backend.fields
-    .filter((f) => f.required)
-    .every((f) => (values[f.key] ?? "").trim().length > 0);
+  const requiredOk =
+    oauth || fields.filter((f) => f.required).every((f) => (values[f.key] ?? "").trim().length > 0);
 
   async function submit() {
     if (!nameValid || !requiredOk) return;
     setBusy(true);
     try {
-      // Only send non-empty fields so rclone keeps its own defaults.
-      const params: Record<string, string> = {};
-      for (const f of backend.fields) {
-        const v = (values[f.key] ?? "").trim();
-        if (v) params[f.key] = v;
+      if (oauth) {
+        // Opens the browser for the user to authorize; returns the token.
+        const token = await api.oauthAuthorize(backendId);
+        await api.createRemote(name.trim(), backendId, { token });
+      } else {
+        // Only send non-empty fields so rclone keeps its own defaults.
+        const params: Record<string, string> = {};
+        for (const f of fields) {
+          const v = (values[f.key] ?? "").trim();
+          if (v) params[f.key] = v;
+        }
+        await api.createRemote(name.trim(), backendId, params);
       }
-      await api.createRemote(name.trim(), backendId, params);
       onCreated();
     } catch (e) {
       onError(String(e));
@@ -440,25 +448,35 @@ function AddRemoteModal({
                 {t(b.labelKey)}
               </option>
             ))}
+            {OAUTH_BACKENDS.map((b) => (
+              <option key={b.id} value={b.id}>
+                {t(b.labelKey)}
+              </option>
+            ))}
           </select>
         </label>
 
-        {backend.fields.map((f) => (
-          <label className="field" key={f.key}>
-            <span>
-              {t(f.labelKey)}
-              {f.required && <span className="req">*</span>}
-            </span>
-            <input
-              type={f.password ? "password" : "text"}
-              value={values[f.key] ?? ""}
-              placeholder={f.placeholder}
-              onChange={(e) => setField(f.key, e.target.value)}
-            />
-          </label>
-        ))}
-
-        <p className="oauth-note">{t("add.oauthNote")}</p>
+        {oauth ? (
+          <p className="oauth-note">{busy ? t("add.authorizing") : t("add.oauthHint")}</p>
+        ) : (
+          <>
+            {fields.map((f) => (
+              <label className="field" key={f.key}>
+                <span>
+                  {t(f.labelKey)}
+                  {f.required && <span className="req">*</span>}
+                </span>
+                <input
+                  type={f.password ? "password" : "text"}
+                  value={values[f.key] ?? ""}
+                  placeholder={f.placeholder}
+                  onChange={(e) => setField(f.key, e.target.value)}
+                />
+              </label>
+            ))}
+            <p className="oauth-note">{t("add.oauthNote")}</p>
+          </>
+        )}
 
         <div className="modal-actions">
           <button onClick={onClose} disabled={busy}>
@@ -469,7 +487,7 @@ function AddRemoteModal({
             onClick={submit}
             disabled={busy || !nameValid || !requiredOk || !name}
           >
-            {busy ? t("add.creating") : t("add.create")}
+            {busy ? (oauth ? t("add.authorizing") : t("add.creating")) : oauth ? t("add.authorizeCreate") : t("add.create")}
           </button>
         </div>
       </div>

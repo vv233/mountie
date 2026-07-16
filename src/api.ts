@@ -122,6 +122,15 @@ export const BACKENDS: BackendDef[] = [
   },
 ];
 
+// OAuth backends use an interactive browser flow (rclone authorize) instead of
+// a credential form.
+export const OAUTH_BACKENDS: { id: string; labelKey: string }[] = [
+  { id: "drive", labelKey: "backend.drive" },
+  { id: "onedrive", labelKey: "backend.onedrive" },
+];
+
+export const isOAuthBackend = (id: string) => OAUTH_BACKENDS.some((b) => b.id === id);
+
 // ---------------------------------------------------------------------------
 // Command wrappers
 // ---------------------------------------------------------------------------
@@ -132,6 +141,7 @@ export const api = {
   listRemotes: () => invoke<RemoteInfo[]>("list_remotes"),
   createRemote: (name: string, kind: string, params: Record<string, string>) =>
     invoke<void>("create_remote", { name, kind, params }),
+  oauthAuthorize: (kind: string) => invoke<string>("oauth_authorize", { kind }),
   deleteRemote: (name: string) => invoke<void>("delete_remote", { name }),
   listMounts: () => invoke<MountInfo[]>("list_mounts"),
   mountRemote: (remote: string, drive: string, preset: Preset, custom?: VfsOptions | null) =>

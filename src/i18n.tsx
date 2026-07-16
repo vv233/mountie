@@ -119,6 +119,17 @@ const DICT: Record<string, Entry> = {
   "backend.sftp": { zh: "SFTP", en: "SFTP" },
   "backend.ftp": { zh: "FTP", en: "FTP" },
   "backend.s3": { zh: "S3 兼容对象存储", en: "S3-compatible object storage" },
+  "backend.drive": { zh: "Google Drive", en: "Google Drive" },
+  "backend.onedrive": { zh: "OneDrive", en: "OneDrive" },
+  "add.oauthHint": {
+    zh: "点击下方按钮会打开浏览器,登录并授权 rclone 访问;完成后自动创建远程。授权过程 Mountie 不接触你的账号密码。",
+    en: "The button below opens your browser to sign in and authorize rclone; the remote is created once you finish. Mountie never sees your account password.",
+  },
+  "add.authorizeCreate": { zh: "授权并创建", en: "Authorize & create" },
+  "add.authorizing": {
+    zh: "已打开浏览器,请完成登录授权…",
+    en: "Browser opened — complete sign-in to continue…",
+  },
   "field.url": { zh: "服务器地址 URL", en: "Server URL" },
   "field.vendor": { zh: "厂商 vendor", en: "Vendor" },
   "field.user": { zh: "用户名", en: "Username" },

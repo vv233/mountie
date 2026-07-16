@@ -544,6 +544,73 @@ pub async fn stop_transfer(state: State<'_, RcloneState>, jobid: u64) -> Result<
     Ok(())
 }
 
+/// Run rclone's OAuth authorization for a backend (e.g. "drive", "onedrive").
+///
+/// Spawns `rclone authorize <kind>`, which opens the system browser to the
+/// provider's consent page and captures the redirect on 127.0.0.1:53682. The
+/// user authorizes in their own browser; on success rclone prints a token
+/// between "Paste the following…" and "End paste", which we return so the
+/// caller can create the remote with `{ "token": <token> }`.
+#[tauri::command]
+pub async fn oauth_authorize(app: AppHandle, kind: String) -> Result<String, String> {
+    use std::time::{Duration, Instant};
+    use tauri_plugin_shell::process::CommandEvent;
+
+    let (mut rx, child) = app
+        .shell()
+        .sidecar("rclone")
+        .map_err(|e| format!("failed to locate bundled rclone: {e}"))?
+        .args(["authorize", &kind])
+        .spawn()
+        .map_err(|e| format!("failed to start authorization: {e}"))?;
+
+    let deadline = Instant::now() + Duration::from_secs(180);
+    let mut token = String::new();
+    let mut capturing = false;
+
+    loop {
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            return Err("授权超时(3 分钟内未完成)。请重试。".to_string());
+        }
+        match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
+            Ok(Some(event)) => {
+                let bytes = match event {
+                    CommandEvent::Stdout(b) | CommandEvent::Stderr(b) => b,
+                    CommandEvent::Terminated(_) => {
+                        return if token.is_empty() {
+                            Err("授权进程已结束但未获得凭据。".to_string())
+                        } else {
+                            Ok(token.trim().to_string())
+                        };
+                    }
+                    _ => continue,
+                };
+                let text = String::from_utf8_lossy(&bytes);
+                for raw in text.lines() {
+                    let line = raw.trim();
+                    if line.contains("Paste the following") {
+                        capturing = true;
+                    } else if line.contains("End paste") {
+                        let _ = child.kill();
+                        return Ok(token.trim().to_string());
+                    } else if capturing && !line.is_empty() {
+                        token.push_str(line);
+                    }
+                }
+            }
+            Ok(None) => {
+                return if token.is_empty() {
+                    Err("授权进程已结束但未获得凭据。".to_string())
+                } else {
+                    Ok(token.trim().to_string())
+                };
+            }
+            Err(_) => { /* no output within 2s; loop to re-check the deadline */ }
+        }
+    }
+}
+
 /// Best-effort check for WinFsp, which rclone needs to mount on Windows.
 #[tauri::command]
 pub fn winfsp_installed() -> bool {

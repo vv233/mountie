@@ -90,6 +90,7 @@ pub fn run() {
             rclone::start_transfer,
             rclone::transfer_status,
             rclone::stop_transfer,
+            rclone::oauth_authorize,
             rclone::winfsp_installed,
             rclone::get_autostart,
             rclone::set_autostart,
