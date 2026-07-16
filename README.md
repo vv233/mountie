@@ -38,6 +38,8 @@ download link if it is missing.
   - **Cloud (OAuth)**: Google Drive, OneDrive, Dropbox, pCloud, Box — authorized
     in your browser
 - **Connection test** — verify a config before saving; nothing is persisted.
+- **Edit remotes** — reconfigure an existing remote; leave the password blank to
+  keep the current one.
 - **One-click mount** with a drive letter and a performance preset (**Fast /
   Balanced / Low-memory**), plus an advanced panel to fine-tune the VFS options.
 - **Mount persistence** — mounted drives are remembered and restored on next launch.
@@ -106,8 +108,8 @@ Pushing a version tag builds the Windows installers and publishes them to a
 GitHub Release (created as a draft for review):
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 The `.github/workflows/release.yml` workflow uses
