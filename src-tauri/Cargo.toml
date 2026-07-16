@@ -1,6 +1,6 @@
 [package]
 name = "mountie"
-version = "0.1.0"
+version = "0.2.0"
 description = "Mountie — open-source GUI to mount cloud storage as a Windows drive, powered by rclone"
 authors = ["Mountie contributors"]
 edition = "2021"

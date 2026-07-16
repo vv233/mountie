@@ -21,30 +21,39 @@ recreates that, in the open:
 - **Performance presets** — *Fast / Balanced / Low-memory* apply a coherent set of
   rclone VFS cache, chunk and read-ahead options behind a single choice.
 
+## Install
+
+Download the latest `.msi` or `.exe` from the
+[Releases](https://github.com/vv233/mountie/releases) page and run it. Mounting
+also requires [WinFsp](https://winfsp.dev/rel/) — the app detects it and offers a
+download link if it is missing.
+
 ## Features
 
-- **Remote management** — add/remove WebDAV, SFTP, FTP and S3 remotes; passwords
-  are obscured by rclone, never stored in plain text.
-- **One-click mount** with a drive letter and a performance preset; mounts are
-  presented as network drives with a friendly volume label.
-- **Mount persistence** — mounted drives are remembered and automatically restored
-  on the next launch.
+- **Remotes for everything rclone speaks** — grouped picker with:
+  - **Protocols**: WebDAV, SFTP, FTP, S3-compatible object storage
+  - **NAS / services**: Nextcloud, Synology, QNAP, ipTIME, ASUSTOR (WebDAV presets
+    that fill in the right vendor and show per-device setup hints)
+  - **Cloud (OAuth)**: Google Drive, OneDrive — authorized in your browser
+- **Connection test** — verify a config before saving; nothing is persisted.
+- **One-click mount** with a drive letter and a performance preset (**Fast /
+  Balanced / Low-memory**), plus an advanced panel to fine-tune the VFS options.
+- **Mount persistence** — mounted drives are remembered and restored on next launch.
 - **System tray** — closing the window hides to the tray so mounts stay available;
-  quit from the tray menu.
-- **Launch at login** — optional autostart toggle.
-- **Direct transfer / sync panel** — run `rclone copy` / `sync` between a remote and
-  a local folder (or two remotes) with live progress, speed and ETA. This bypasses
-  the mount layer and saturates the connection — much faster than dragging large
-  files through a mounted drive.
-- **Friendly errors** — common mount failures (missing WinFsp, drive-letter in use,
-  connection/auth problems) are surfaced as actionable messages.
-- **WinFsp detection** — guides installation when the required driver is missing.
+  quit from the tray menu. Optional **launch at login**.
+- **Direct transfer / sync panel** — `rclone copy` / `sync` between a remote and a
+  local folder (or two remotes) with live progress, speed and ETA, bypassing the
+  mount layer to saturate the connection.
+- **Auto turbo** — large files are automatically split into parallel streams;
+  small files are untouched. On by default.
+- **Bilingual UI** — switch between English and 中文 live; the choice is remembered.
+- **Friendly errors** — missing WinFsp, drive-letter in use, connection/auth
+  problems are surfaced as actionable messages.
 
 ## Roadmap
 
-- [ ] OAuth backends (Google Drive / OneDrive / Dropbox)
-- [ ] Visual tuning of performance presets
-- [ ] Signed installers + GitHub Releases
+- [ ] More backends (Dropbox, Backblaze B2, Mega, pCloud, …)
+- [ ] Signed installers
 - [ ] Cross-platform (macOS / Linux)
 
 ## Tech stack
@@ -95,8 +104,8 @@ Pushing a version tag builds the Windows installers and publishes them to a
 GitHub Release (created as a draft for review):
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 The `.github/workflows/release.yml` workflow uses
