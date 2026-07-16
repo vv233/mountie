@@ -1,69 +1,100 @@
 # Mountie
 
-开源的 RaiDrive 替代品 —— 把云存储 / 远程协议(WebDAV、SFTP、FTP、S3…)一键挂载成 Windows 本地盘符的现代化 GUI。
+An open-source RaiDrive alternative — a modern GUI that mounts cloud storage and
+remote protocols (WebDAV, SFTP, FTP, S3, …) as Windows drive letters, and moves
+data at full speed. Powered by [rclone](https://github.com/rclone/rclone).
 
-> **架构:rclone 做发动机 + Tauri 做外壳。** 挂载与传输能力全部委托给成熟的 [rclone](https://github.com/rclone/rclone),本项目专注于把它封装成小白也能用的图形界面。
+> **Architecture: rclone as the engine, Tauri as the shell.** All mounting and
+> transfer work is delegated to the mature, battle-tested rclone; Mountie focuses
+> on making it usable without touching the command line.
 
-## 为什么
+## Why
 
-RaiDrive 的后端能力早已被开源方案完全覆盖(rclone 支持 70+ 后端;[WinFsp](https://winfsp.dev/) 提供 Windows 用户态文件系统)。RaiDrive 的价值在于易用性 —— Mountie 用开源方式复刻这份易用性:
+rclone (70+ backends) and [WinFsp](https://winfsp.dev/) already cover everything
+RaiDrive does under the hood. RaiDrive's value is its ease of use — Mountie
+recreates that, in the open:
 
-- **快** —— GUI 用 [Tauri](https://tauri.app/)(Rust + Web),几 MB 体积、原生性能;传输由 rclone 的多线程 + VFS 缓存驱动
-- **方便** —— 表单化配置远程、选盘符一键挂载,无需碰命令行
-- **性能预设** —— 「极速 / 均衡 / 省内存」一键套用 rclone 的 VFS 缓存、分块、预读等参数
+- **Fast** — the UI is [Tauri](https://tauri.app/) (Rust + web), a few MB with
+  native performance; transfers ride rclone's multi-threaded engine and VFS cache.
+- **Convenient** — configure remotes in a form, pick a drive letter, mount in one
+  click. No CLI required.
+- **Performance presets** — *Fast / Balanced / Low-memory* apply a coherent set of
+  rclone VFS cache, chunk and read-ahead options behind a single choice.
 
-## 功能状态
+## Features
 
-**MVP(当前)**
-- [x] 远程配置管理(WebDAV / SFTP / FTP / S3,增删)
-- [x] 一键挂载为盘符 + 性能预设
-- [x] 挂载状态与实时速率
-- [x] WinFsp 检测引导
+- **Remote management** — add/remove WebDAV, SFTP, FTP and S3 remotes; passwords
+  are obscured by rclone, never stored in plain text.
+- **One-click mount** with a drive letter and a performance preset; mounts are
+  presented as network drives with a friendly volume label.
+- **Mount persistence** — mounted drives are remembered and automatically restored
+  on the next launch.
+- **System tray** — closing the window hides to the tray so mounts stay available;
+  quit from the tray menu.
+- **Launch at login** — optional autostart toggle.
+- **Direct transfer / sync panel** — run `rclone copy` / `sync` between a remote and
+  a local folder (or two remotes) with live progress, speed and ETA. This bypasses
+  the mount layer and saturates the connection — much faster than dragging large
+  files through a mounted drive.
+- **Friendly errors** — common mount failures (missing WinFsp, drive-letter in use,
+  connection/auth problems) are surfaced as actionable messages.
+- **WinFsp detection** — guides installation when the required driver is missing.
 
-**规划中**
-- [ ] 直传 / 同步面板(`rclone copy/sync`,绕过挂载层跑满带宽)
-- [ ] OAuth 后端(Google Drive / OneDrive / Dropbox)
-- [ ] 系统托盘 + 开机自启
-- [ ] 跨平台(macOS / Linux)
+## Roadmap
 
-## 技术栈
+- [ ] OAuth backends (Google Drive / OneDrive / Dropbox)
+- [ ] Visual tuning of performance presets
+- [ ] Signed installers + GitHub Releases
+- [ ] Cross-platform (macOS / Linux)
 
-| 层 | 选择 |
+## Tech stack
+
+| Layer | Choice |
 |---|---|
-| 挂载 / 传输引擎 | rclone(打包为 Tauri sidecar) |
-| Windows 文件系统 | WinFsp |
+| Mount / transfer engine | rclone, bundled as a Tauri sidecar |
+| Windows filesystem | WinFsp |
 | GUI | Tauri v2 + React + TypeScript + Vite |
-| 集成方式 | GUI 通过 rclone RC HTTP API 驱动一个本机 `rclone rcd` 守护进程 |
+| Integration | the GUI drives a loopback-only `rclone rcd` daemon over its RC HTTP API |
 
-## 开发
+## Development
 
-前置:[Node.js](https://nodejs.org/)、[Rust](https://rustup.rs/)、[WinFsp](https://winfsp.dev/rel/)(运行挂载时需要)。
+Prerequisites: [Node.js](https://nodejs.org/), [Rust](https://rustup.rs/), and
+[WinFsp](https://winfsp.dev/rel/) (needed at runtime to mount).
 
 ```powershell
-# 1. 安装前端依赖
+# 1. Install frontend dependencies
 npm install
 
-# 2. 拉取 rclone 二进制到 sidecar 位置(binaries/ 已 gitignore)
+# 2. Fetch the rclone binary into the sidecar location (binaries/ is gitignored)
 pwsh scripts/fetch-rclone.ps1
 
-# 3. 启动开发模式
+# 3. Run in development
 npm run tauri dev
 ```
 
-打包:
+Build installers:
 
 ```powershell
 npm run tauri build
 ```
 
-### Windows + OneDrive 注意
+### Windows + OneDrive / antivirus note
 
-若仓库位于 OneDrive 同步目录,cargo 会因同步锁定而在执行 build script 时报 `Access denied (os error 5)`。仓库内 `.cargo/config.toml`(gitignored)已把编译输出目录重定向到 OneDrive 之外。克隆到非同步目录则无需此文件。
+If the repository lives in a OneDrive-synced folder, or a real-time antivirus
+(e.g. Avira) locks freshly-compiled build scripts, cargo can fail with
+`Access denied (os error 5)`. Two mitigations:
 
-## 安全说明
+- A gitignored `.cargo/config.toml` redirects the build output directory outside
+  OneDrive (delete it if you clone to a non-synced location).
+- Add the cargo target directory and `~/.cargo` to your antivirus real-time
+  exclusions, or pause real-time protection for the first full build.
 
-`rclone rcd` 仅绑定 `127.0.0.1`,并使用每次启动随机生成的凭据,不对外暴露。
+## Security
 
-## 许可
+The `rclone rcd` daemon binds to `127.0.0.1` only and uses a randomly generated
+credential per launch, so it is not reachable off-host.
 
-[MIT](./LICENSE)。本项目通过命令行/API 调用 rclone(MIT),不修改其源码。
+## License
+
+[MIT](./LICENSE). Mountie invokes rclone (MIT) via its command line / API and does
+not modify rclone's source.
