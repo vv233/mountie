@@ -34,7 +34,9 @@ download link if it is missing.
   - **Protocols**: WebDAV, SFTP, FTP, S3-compatible object storage
   - **NAS / services**: Nextcloud, Synology, QNAP, ipTIME, ASUSTOR (WebDAV presets
     that fill in the right vendor and show per-device setup hints)
-  - **Cloud (OAuth)**: Google Drive, OneDrive — authorized in your browser
+  - **Cloud (key)**: Backblaze B2, MEGA
+  - **Cloud (OAuth)**: Google Drive, OneDrive, Dropbox, pCloud, Box — authorized
+    in your browser
 - **Connection test** — verify a config before saving; nothing is persisted.
 - **One-click mount** with a drive letter and a performance preset (**Fast /
   Balanced / Low-memory**), plus an advanced panel to fine-tune the VFS options.
@@ -52,7 +54,7 @@ download link if it is missing.
 
 ## Roadmap
 
-- [ ] More backends (Dropbox, Backblaze B2, Mega, pCloud, …)
+- [ ] Even more backends (Google Photos, Proton Drive, …)
 - [ ] Signed installers
 - [ ] Cross-platform (macOS / Linux)
 
@@ -104,8 +106,8 @@ Pushing a version tag builds the Windows installers and publishes them to a
 GitHub Release (created as a draft for review):
 
 ```powershell
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The `.github/workflows/release.yml` workflow uses
