@@ -480,6 +480,13 @@ function AddRemoteModal({
                 </option>
               ))}
             </optgroup>
+            <optgroup label={t("group.cloudkey")}>
+              {BACKENDS.filter((b) => b.group === "cloud").map((b) => (
+                <option key={b.id} value={b.id}>
+                  {t(b.labelKey)}
+                </option>
+              ))}
+            </optgroup>
             <optgroup label={t("group.cloud")}>
               {OAUTH_BACKENDS.map((b) => (
                 <option key={b.id} value={b.id}>

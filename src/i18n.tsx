@@ -55,7 +55,8 @@ const DICT: Record<string, Entry> = {
   "add.type": { zh: "类型", en: "Type" },
   "group.protocol": { zh: "标准协议", en: "Protocols" },
   "group.nas": { zh: "NAS / 服务", en: "NAS / Services" },
-  "group.cloud": { zh: "云盘(需授权)", en: "Cloud (OAuth)" },
+  "group.cloudkey": { zh: "云存储(密钥登录)", en: "Cloud (key login)" },
+  "group.cloud": { zh: "云盘(浏览器授权)", en: "Cloud (OAuth)" },
   "note.nextcloud": {
     zh: "URL 填 Nextcloud/ownCloud 的 WebDAV 地址,通常是 https://你的域名/remote.php/dav",
     en: "URL is your Nextcloud/ownCloud WebDAV address, usually https://your-domain/remote.php/dav",
@@ -155,8 +156,13 @@ const DICT: Record<string, Entry> = {
   "backend.qnap": { zh: "QNAP", en: "QNAP" },
   "backend.iptime": { zh: "ipTIME", en: "ipTIME" },
   "backend.asustor": { zh: "ASUSTOR", en: "ASUSTOR" },
+  "backend.b2": { zh: "Backblaze B2", en: "Backblaze B2" },
+  "backend.mega": { zh: "MEGA", en: "MEGA" },
   "backend.drive": { zh: "Google Drive", en: "Google Drive" },
   "backend.onedrive": { zh: "OneDrive", en: "OneDrive" },
+  "backend.dropbox": { zh: "Dropbox", en: "Dropbox" },
+  "backend.pcloud": { zh: "pCloud", en: "pCloud" },
+  "backend.box": { zh: "Box", en: "Box" },
   "add.oauthHint": {
     zh: "点击下方按钮会打开浏览器,登录并授权 rclone 访问;完成后自动创建远程。授权过程 Mountie 不接触你的账号密码。",
     en: "The button below opens your browser to sign in and authorize rclone; the remote is created once you finish. Mountie never sees your account password.",
@@ -177,6 +183,8 @@ const DICT: Record<string, Entry> = {
   "field.secretKey": { zh: "Secret Access Key", en: "Secret Access Key" },
   "field.endpoint": { zh: "Endpoint", en: "Endpoint" },
   "field.region": { zh: "Region", en: "Region" },
+  "field.account": { zh: "账户 / Key ID", en: "Account / Key ID" },
+  "field.key": { zh: "应用密钥", en: "Application Key" },
 };
 
 interface I18nCtx {

@@ -72,7 +72,7 @@ export interface BackendField {
   required?: boolean;
 }
 
-export type BackendGroup = "protocol" | "nas";
+export type BackendGroup = "protocol" | "nas" | "cloud";
 
 export interface BackendDef {
   id: string; // unique UI id
@@ -199,6 +199,27 @@ export const BACKENDS: BackendDef[] = [
       ...WEBDAV_LOGIN,
     ],
   },
+  // --- Cloud storage (key/credential based) ---
+  {
+    id: "b2",
+    labelKey: "backend.b2",
+    type: "b2",
+    group: "cloud",
+    fields: [
+      { key: "account", labelKey: "field.account", required: true },
+      { key: "key", labelKey: "field.key", password: true, required: true },
+    ],
+  },
+  {
+    id: "mega",
+    labelKey: "backend.mega",
+    type: "mega",
+    group: "cloud",
+    fields: [
+      { key: "user", labelKey: "field.user", required: true },
+      { key: "pass", labelKey: "field.pass", password: true, required: true },
+    ],
+  },
 ];
 
 // OAuth backends use an interactive browser flow (rclone authorize) instead of
@@ -206,6 +227,9 @@ export const BACKENDS: BackendDef[] = [
 export const OAUTH_BACKENDS: { id: string; labelKey: string }[] = [
   { id: "drive", labelKey: "backend.drive" },
   { id: "onedrive", labelKey: "backend.onedrive" },
+  { id: "dropbox", labelKey: "backend.dropbox" },
+  { id: "pcloud", labelKey: "backend.pcloud" },
+  { id: "box", labelKey: "backend.box" },
 ];
 
 export const isOAuthBackend = (id: string) => OAUTH_BACKENDS.some((b) => b.id === id);
