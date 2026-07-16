@@ -197,6 +197,33 @@ fn preset_options(preset: &str, volume_name: &str) -> (Value, Value) {
     (vfs, mount)
 }
 
+/// User-tuned VFS options coming from the mount form's advanced panel.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VfsOptions {
+    pub cache_mode: String,
+    pub chunk_size: String,
+    pub read_ahead: String,
+    pub dir_cache_time: String,
+}
+
+/// Build a vfsOpt object from explicit user values. "0"/empty size fields are
+/// omitted so rclone keeps its own default for them.
+fn vfs_from_custom(c: &VfsOptions) -> Value {
+    let mut m = serde_json::Map::new();
+    m.insert("CacheMode".into(), json!(c.cache_mode));
+    if !c.chunk_size.is_empty() && c.chunk_size != "0" {
+        m.insert("ChunkSize".into(), json!(c.chunk_size));
+    }
+    if !c.read_ahead.is_empty() && c.read_ahead != "0" {
+        m.insert("ReadAhead".into(), json!(c.read_ahead));
+    }
+    if !c.dir_cache_time.is_empty() {
+        m.insert("DirCacheTime".into(), json!(c.dir_cache_time));
+    }
+    Value::Object(m)
+}
+
 /// Turn rclone's raw mount error into a human-friendly, actionable message.
 fn friendly_mount_error(raw: &str) -> String {
     let low = raw.to_lowercase();
@@ -252,7 +279,7 @@ fn save_entries(app: &AppHandle, entries: &[MountEntry]) {
 pub async fn restore_mounts(app: &AppHandle) {
     let state = app.state::<RcloneState>();
     for e in load_entries(app) {
-        let _ = do_mount(&state, &e.remote, &e.drive, &e.preset).await;
+        let _ = do_mount(&state, &e.remote, &e.drive, &e.preset, None).await;
     }
 }
 
@@ -274,9 +301,14 @@ async fn do_mount(
     remote: &str,
     letter: &str,
     preset: &str,
+    custom: Option<&VfsOptions>,
 ) -> Result<(), String> {
     let mount_point = format!("{letter}:");
-    let (vfs_opt, mount_opt) = preset_options(preset, remote);
+    let (default_vfs, mount_opt) = preset_options(preset, remote);
+    let vfs_opt = match custom {
+        Some(c) => vfs_from_custom(c),
+        None => default_vfs,
+    };
     rc_call(
         state,
         "mount/mount",
@@ -390,9 +422,10 @@ pub async fn mount_remote(
     remote: String,
     drive: String,
     preset: String,
+    custom: Option<VfsOptions>,
 ) -> Result<(), String> {
     let letter = normalize_drive(&drive)?;
-    do_mount(&state, &remote, &letter, &preset).await?;
+    do_mount(&state, &remote, &letter, &preset, custom.as_ref()).await?;
 
     let mut entries = load_entries(&app);
     // One mount per remote and per drive letter.

@@ -35,11 +35,28 @@ export type TransferOp = "copy" | "sync";
 
 export type Preset = "fast" | "balanced" | "lowmem";
 
-export const PRESETS: { id: Preset; label: string; hint: string }[] = [
-  { id: "fast", label: "极速模式", hint: "全量缓存 + 大块预读,读写最流畅(占用磁盘/内存较多)" },
-  { id: "balanced", label: "均衡", hint: "写缓存 + 中等分块,速度与占用平衡(默认)" },
-  { id: "lowmem", label: "省内存", hint: "不做读缓存,占用最小(随机写较慢)" },
+export const PRESETS: { id: Preset; labelKey: string; hintKey: string }[] = [
+  { id: "fast", labelKey: "preset.fast", hintKey: "preset.fast.hint" },
+  { id: "balanced", labelKey: "preset.balanced", hintKey: "preset.balanced.hint" },
+  { id: "lowmem", labelKey: "preset.lowmem", hintKey: "preset.lowmem.hint" },
 ];
+
+/// The VFS options each preset maps to — shown in the mount form's advanced
+/// panel and used as the editable defaults when tuning.
+export interface VfsOptions {
+  cacheMode: string;
+  chunkSize: string;
+  readAhead: string;
+  dirCacheTime: string;
+}
+
+export const PRESET_DEFAULTS: Record<Preset, VfsOptions> = {
+  fast: { cacheMode: "full", chunkSize: "128M", readAhead: "128M", dirCacheTime: "5m0s" },
+  balanced: { cacheMode: "writes", chunkSize: "64M", readAhead: "0", dirCacheTime: "1m0s" },
+  lowmem: { cacheMode: "off", chunkSize: "0", readAhead: "0", dirCacheTime: "30s" },
+};
+
+export const CACHE_MODES = ["off", "minimal", "writes", "full"];
 
 // ---------------------------------------------------------------------------
 // Backend catalog — which remote types the "Add remote" form knows how to fill.
@@ -49,7 +66,7 @@ export const PRESETS: { id: Preset; label: string; hint: string }[] = [
 
 export interface BackendField {
   key: string;
-  label: string;
+  labelKey: string;
   password?: boolean;
   placeholder?: string;
   required?: boolean;
@@ -57,50 +74,50 @@ export interface BackendField {
 
 export interface BackendDef {
   id: string; // rclone backend type
-  label: string;
+  labelKey: string;
   fields: BackendField[];
 }
 
 export const BACKENDS: BackendDef[] = [
   {
     id: "webdav",
-    label: "WebDAV",
+    labelKey: "backend.webdav",
     fields: [
-      { key: "url", label: "服务器地址 URL", placeholder: "https://dav.example.com/remote.php/dav", required: true },
-      { key: "vendor", label: "厂商 vendor", placeholder: "nextcloud / owncloud / other" },
-      { key: "user", label: "用户名" },
-      { key: "pass", label: "密码", password: true },
+      { key: "url", labelKey: "field.url", placeholder: "https://dav.example.com/remote.php/dav", required: true },
+      { key: "vendor", labelKey: "field.vendor", placeholder: "nextcloud / owncloud / other" },
+      { key: "user", labelKey: "field.user" },
+      { key: "pass", labelKey: "field.pass", password: true },
     ],
   },
   {
     id: "sftp",
-    label: "SFTP",
+    labelKey: "backend.sftp",
     fields: [
-      { key: "host", label: "主机", placeholder: "example.com", required: true },
-      { key: "port", label: "端口", placeholder: "22" },
-      { key: "user", label: "用户名" },
-      { key: "pass", label: "密码", password: true },
+      { key: "host", labelKey: "field.host", placeholder: "example.com", required: true },
+      { key: "port", labelKey: "field.port", placeholder: "22" },
+      { key: "user", labelKey: "field.user" },
+      { key: "pass", labelKey: "field.pass", password: true },
     ],
   },
   {
     id: "ftp",
-    label: "FTP",
+    labelKey: "backend.ftp",
     fields: [
-      { key: "host", label: "主机", placeholder: "example.com", required: true },
-      { key: "port", label: "端口", placeholder: "21" },
-      { key: "user", label: "用户名" },
-      { key: "pass", label: "密码", password: true },
+      { key: "host", labelKey: "field.host", placeholder: "example.com", required: true },
+      { key: "port", labelKey: "field.port", placeholder: "21" },
+      { key: "user", labelKey: "field.user" },
+      { key: "pass", labelKey: "field.pass", password: true },
     ],
   },
   {
     id: "s3",
-    label: "S3 兼容对象存储",
+    labelKey: "backend.s3",
     fields: [
-      { key: "provider", label: "Provider", placeholder: "AWS / Minio / Cloudflare / Other" },
-      { key: "access_key_id", label: "Access Key ID" },
-      { key: "secret_access_key", label: "Secret Access Key", password: true },
-      { key: "endpoint", label: "Endpoint", placeholder: "https://s3.example.com" },
-      { key: "region", label: "Region", placeholder: "us-east-1" },
+      { key: "provider", labelKey: "field.provider", placeholder: "AWS / Minio / Cloudflare / Other" },
+      { key: "access_key_id", labelKey: "field.accessKey" },
+      { key: "secret_access_key", labelKey: "field.secretKey", password: true },
+      { key: "endpoint", labelKey: "field.endpoint", placeholder: "https://s3.example.com" },
+      { key: "region", labelKey: "field.region", placeholder: "us-east-1" },
     ],
   },
 ];
@@ -117,8 +134,8 @@ export const api = {
     invoke<void>("create_remote", { name, kind, params }),
   deleteRemote: (name: string) => invoke<void>("delete_remote", { name }),
   listMounts: () => invoke<MountInfo[]>("list_mounts"),
-  mountRemote: (remote: string, drive: string, preset: Preset) =>
-    invoke<void>("mount_remote", { remote, drive, preset }),
+  mountRemote: (remote: string, drive: string, preset: Preset, custom?: VfsOptions | null) =>
+    invoke<void>("mount_remote", { remote, drive, preset, custom: custom ?? null }),
   unmount: (mountPoint: string) => invoke<void>("unmount", { mountPoint }),
   coreStats: () => invoke<CoreStats>("core_stats"),
   getAutostart: () => invoke<boolean>("get_autostart"),

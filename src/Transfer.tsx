@@ -9,6 +9,7 @@ import {
   TransferOp,
   TransferStatus,
 } from "./api";
+import { useI18n } from "./i18n";
 
 // An endpoint is either a local folder or a remote (+ optional subpath).
 interface Endpoint {
@@ -37,6 +38,7 @@ export default function TransferPanel({
   remotes: RemoteInfo[];
   onError: (e: string) => void;
 }) {
+  const { t } = useI18n();
   const firstRemote = remotes[0]?.name ?? "";
   const [source, setSource] = useState<Endpoint>({ kind: "remote", path: "", remote: firstRemote });
   const [dest, setDest] = useState<Endpoint>({ kind: "local", path: "", remote: firstRemote });
@@ -47,7 +49,7 @@ export default function TransferPanel({
   const jobsRef = useRef<Job[]>([]);
   jobsRef.current = jobs;
   useEffect(() => {
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       jobsRef.current.forEach((j) => {
         if (j.status?.finished) return;
         api
@@ -56,22 +58,17 @@ export default function TransferPanel({
           .catch(() => {});
       });
     }, 1000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, []);
 
   async function start() {
     const src = endpointToFs(source);
     const dst = endpointToFs(dest);
     if (!src || !dst) {
-      onError("请填写源和目标");
+      onError(t("xfer.needBoth"));
       return;
     }
-    if (
-      op === "sync" &&
-      !confirm("同步会删除「目标」中源里没有的文件,使目标与源完全一致。确定继续?")
-    ) {
-      return;
-    }
+    if (op === "sync" && !confirm(t("xfer.syncConfirm"))) return;
     try {
       const id = await api.startTransfer(src, dst, op);
       setJobs((prev) => [{ id, label: `${src}  →  ${dst}`, op }, ...prev]);
@@ -95,29 +92,27 @@ export default function TransferPanel({
   return (
     <section className="transfer">
       <div className="xfer-form">
-        <EndpointEditor label="源" value={source} onChange={setSource} remotes={remotes} onError={onError} />
+        <EndpointEditor label={t("xfer.source")} value={source} onChange={setSource} remotes={remotes} onError={onError} />
         <div className="xfer-arrow">↓</div>
-        <EndpointEditor label="目标" value={dest} onChange={setDest} remotes={remotes} onError={onError} />
+        <EndpointEditor label={t("xfer.dest")} value={dest} onChange={setDest} remotes={remotes} onError={onError} />
 
         <div className="xfer-op-row">
           <label className="xfer-op">
-            操作
+            {t("xfer.op")}
             <select value={op} onChange={(e) => setOp(e.target.value as TransferOp)}>
-              <option value="copy">复制(只增改,不删)</option>
-              <option value="sync">同步(目标与源一致,会删多余)</option>
+              <option value="copy">{t("xfer.copy")}</option>
+              <option value="sync">{t("xfer.sync")}</option>
             </select>
           </label>
           <button className="primary" onClick={start}>
-            开始传输
+            {t("xfer.start")}
           </button>
         </div>
-        <p className="xfer-hint">
-          直传绕过挂载盘符,由 rclone 多线程跑满带宽 —— 大文件批量传输比拖进盘符快得多。
-        </p>
+        <p className="xfer-hint">{t("xfer.hint")}</p>
       </div>
 
       <div className="xfer-jobs">
-        {jobs.length === 0 && <p className="empty">还没有传输任务。</p>}
+        {jobs.length === 0 && <p className="empty">{t("xfer.empty")}</p>}
         {jobs.map((j) => (
           <TransferCard key={j.id} job={j} onCancel={() => cancel(j.id)} onDismiss={() => dismiss(j.id)} />
         ))}
@@ -139,6 +134,8 @@ function EndpointEditor({
   remotes: RemoteInfo[];
   onError: (e: string) => void;
 }) {
+  const { t } = useI18n();
+
   async function browse() {
     try {
       const picked = await open({ directory: true, multiple: false });
@@ -157,24 +154,21 @@ function EndpointEditor({
             className={value.kind === "remote" ? "seg-on" : ""}
             onClick={() => onChange({ ...value, kind: "remote" })}
           >
-            远程
+            {t("xfer.remote")}
           </button>
           <button
             className={value.kind === "local" ? "seg-on" : ""}
             onClick={() => onChange({ ...value, kind: "local" })}
           >
-            本地
+            {t("xfer.local")}
           </button>
         </div>
       </div>
 
       {value.kind === "remote" ? (
         <div className="endpoint-body">
-          <select
-            value={value.remote}
-            onChange={(e) => onChange({ ...value, remote: e.target.value })}
-          >
-            {remotes.length === 0 && <option value="">（无远程）</option>}
+          <select value={value.remote} onChange={(e) => onChange({ ...value, remote: e.target.value })}>
+            {remotes.length === 0 && <option value="">{t("xfer.noRemote")}</option>}
             {remotes.map((r) => (
               <option key={r.name} value={r.name}>
                 {r.name}:
@@ -182,7 +176,7 @@ function EndpointEditor({
             ))}
           </select>
           <input
-            placeholder="子路径(可选),如 backup/photos"
+            placeholder={t("xfer.subpath")}
             value={value.path}
             onChange={(e) => onChange({ ...value, path: e.target.value })}
           />
@@ -190,11 +184,11 @@ function EndpointEditor({
       ) : (
         <div className="endpoint-body">
           <input
-            placeholder="本地文件夹路径"
+            placeholder={t("xfer.localPath")}
             value={value.path}
             onChange={(e) => onChange({ ...value, path: e.target.value })}
           />
-          <button onClick={browse}>浏览…</button>
+          <button onClick={browse}>{t("xfer.browse")}</button>
         </div>
       )}
     </div>
@@ -210,6 +204,7 @@ function TransferCard({
   onCancel: () => void;
   onDismiss: () => void;
 }) {
+  const { t } = useI18n();
   const s = job.status;
   const total = s?.total_bytes ?? 0;
   const done = s?.bytes ?? 0;
@@ -221,15 +216,15 @@ function TransferCard({
     <div className={`xfer-card ${finished ? (failed ? "failed" : "done") : ""}`}>
       <div className="xfer-card-top">
         <span className="xfer-label" title={job.label}>
-          {job.op === "sync" ? "同步" : "复制"} · {job.label}
+          {job.op === "sync" ? t("xfer.opSync") : t("xfer.opCopy")} · {job.label}
         </span>
         {finished ? (
-          <button className="icon-btn" title="移除" onClick={onDismiss}>
+          <button className="icon-btn" title={t("xfer.remove")} onClick={onDismiss}>
             ✕
           </button>
         ) : (
           <button className="danger" onClick={onCancel}>
-            取消
+            {t("common.cancel")}
           </button>
         )}
       </div>
@@ -241,9 +236,9 @@ function TransferCard({
       <div className="xfer-meta">
         {finished ? (
           failed ? (
-            <span className="err-text">失败:{s?.error || "未知错误"}</span>
+            <span className="err-text">{t("xfer.failed", { err: s?.error || "?" })}</span>
           ) : (
-            <span className="ok-text">✓ 完成 · {formatBytes(done)}</span>
+            <span className="ok-text">{t("xfer.done", { bytes: formatBytes(done) })}</span>
           )
         ) : (
           <>
@@ -252,7 +247,7 @@ function TransferCard({
               {formatBytes(done)} / {total > 0 ? formatBytes(total) : "…"}
             </span>
             <span className="xfer-speed">{formatSpeed(s?.speed)}</span>
-            <span>剩余 {formatEta(s?.eta)}</span>
+            <span>{t("xfer.eta", { eta: formatEta(s?.eta) })}</span>
           </>
         )}
       </div>

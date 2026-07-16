@@ -3,13 +3,17 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   api,
   BACKENDS,
+  CACHE_MODES,
   formatSpeed,
   PRESETS,
+  PRESET_DEFAULTS,
   Preset,
   RemoteInfo,
   MountInfo,
   CoreStats,
+  VfsOptions,
 } from "./api";
+import { useI18n } from "./i18n";
 import TransferPanel from "./Transfer";
 import "./App.css";
 
@@ -18,6 +22,7 @@ type View = "mount" | "transfer";
 const ALL_LETTERS = "DEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 export default function App() {
+  const { t, lang, setLang } = useI18n();
   const [ready, setReady] = useState(false);
   const [winfsp, setWinfsp] = useState(true);
   const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
@@ -84,7 +89,7 @@ export default function App() {
   }
 
   async function handleDelete(name: string) {
-    if (!confirm(`删除远程配置 "${name}"?(不会影响云端数据)`)) return;
+    if (!confirm(t("remotes.deleteConfirm", { name }))) return;
     try {
       await api.deleteRemote(name);
       refresh();
@@ -109,25 +114,35 @@ export default function App() {
           <span className="logo">☁️</span>
           <div>
             <h1>Mountie</h1>
-            <p className="tagline">把云存储挂载成本地盘符 · 由 rclone 驱动</p>
+            <p className="tagline">{t("app.tagline")}</p>
           </div>
         </div>
-        <div className="status">
-          <span className={`dot ${ready ? "ok" : "wait"}`} />
-          {ready ? "引擎就绪" : "引擎启动中…"}
-          {ready && (
-            <span className="speed" title="当前总传输速率">
-              ↑↓ {formatSpeed(stats?.speed)}
-            </span>
-          )}
+        <div className="top-right">
+          <div className="lang">
+            <button className={lang === "zh" ? "on" : ""} onClick={() => setLang("zh")}>
+              中
+            </button>
+            <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>
+              EN
+            </button>
+          </div>
+          <div className="status">
+            <span className={`dot ${ready ? "ok" : "wait"}`} />
+            {ready ? t("status.ready") : t("status.starting")}
+            {ready && (
+              <span className="speed" title={t("status.speedTitle")}>
+                ↑↓ {formatSpeed(stats?.speed)}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
       {!winfsp && (
         <div className="banner warn">
-          未检测到 <b>WinFsp</b>,挂载盘符需要它。
+          {t("winfsp.missing")}
           <button className="link" onClick={() => openUrl("https://winfsp.dev/rel/")}>
-            前往下载安装
+            {t("winfsp.download")}
           </button>
         </div>
       )}
@@ -135,54 +150,49 @@ export default function App() {
         <div className="banner error">
           <span className="banner-msg">{error}</span>
           <button className="link" onClick={() => setError(null)}>
-            知道了
+            {t("banner.dismiss")}
           </button>
         </div>
       )}
 
       <nav className="tabs">
-        <button
-          className={view === "mount" ? "tab on" : "tab"}
-          onClick={() => setView("mount")}
-        >
-          挂载盘符
+        <button className={view === "mount" ? "tab on" : "tab"} onClick={() => setView("mount")}>
+          {t("tab.mount")}
         </button>
         <button
           className={view === "transfer" ? "tab on" : "tab"}
           onClick={() => setView("transfer")}
         >
-          直传 / 同步
+          {t("tab.transfer")}
         </button>
       </nav>
 
       <main>
         {view === "mount" && (
-        <section>
-          <div className="section-head">
-            <h2>远程配置</h2>
-            <button className="primary" onClick={() => setShowAdd(true)} disabled={!ready}>
-              + 添加远程
-            </button>
-          </div>
+          <section>
+            <div className="section-head">
+              <h2>{t("remotes.title")}</h2>
+              <button className="primary" onClick={() => setShowAdd(true)} disabled={!ready}>
+                {t("remotes.add")}
+              </button>
+            </div>
 
-          {ready && remotes.length === 0 && (
-            <p className="empty">还没有配置远程。点击「添加远程」连接你的第一个云存储。</p>
-          )}
+            {ready && remotes.length === 0 && <p className="empty">{t("remotes.empty")}</p>}
 
-          <div className="cards">
-            {remotes.map((r) => (
-              <RemoteCard
-                key={r.name}
-                remote={r}
-                mountPoint={mountPointFor(r.name)}
-                freeLetters={freeLetters}
-                onDelete={() => handleDelete(r.name)}
-                onChanged={refresh}
-                onError={setError}
-              />
-            ))}
-          </div>
-        </section>
+            <div className="cards">
+              {remotes.map((r) => (
+                <RemoteCard
+                  key={r.name}
+                  remote={r}
+                  mountPoint={mountPointFor(r.name)}
+                  freeLetters={freeLetters}
+                  onDelete={() => handleDelete(r.name)}
+                  onChanged={refresh}
+                  onError={setError}
+                />
+              ))}
+            </div>
+          </section>
         )}
         {view === "transfer" && <TransferPanel remotes={remotes} onError={setError} />}
       </main>
@@ -195,9 +205,9 @@ export default function App() {
             onChange={(e) => toggleAutostart(e.target.checked)}
             disabled={!ready}
           />
-          开机自启
+          {t("footer.autostart")}
         </label>
-        <span className="foot-hint">关闭窗口会最小化到托盘,挂载的盘符保持可用;退出请用托盘菜单</span>
+        <span className="foot-hint">{t("footer.hint")}</span>
       </footer>
 
       {showAdd && (
@@ -229,16 +239,24 @@ function RemoteCard({
   onChanged: () => void;
   onError: (e: string) => void;
 }) {
+  const { t } = useI18n();
   const [drive, setDrive] = useState(freeLetters[0] ?? "Z");
   const [preset, setPreset] = useState<Preset>("balanced");
+  const [adv, setAdv] = useState(false);
+  const [vfs, setVfs] = useState<VfsOptions>(PRESET_DEFAULTS.balanced);
   const [busy, setBusy] = useState(false);
   const mounted = mountPoint !== null;
+
+  function changePreset(p: Preset) {
+    setPreset(p);
+    setVfs(PRESET_DEFAULTS[p]); // reset tuning to the new preset's defaults
+  }
 
   async function doMount() {
     setBusy(true);
     try {
-      await api.mountRemote(remote.name, drive, preset);
-      // Give rclone a moment to register the mount, then refresh.
+      // Send tuned options only if the advanced panel is open.
+      await api.mountRemote(remote.name, drive, preset, adv ? vfs : null);
       setTimeout(onChanged, 600);
     } catch (e) {
       onError(String(e));
@@ -267,44 +285,82 @@ function RemoteCard({
           <div className="card-name">{remote.name}</div>
           <span className="badge">{remote.type}</span>
         </div>
-        <button className="icon-btn" title="删除" onClick={onDelete} disabled={busy}>
+        <button className="icon-btn" title={t("remotes.deleteTitle")} onClick={onDelete} disabled={busy}>
           🗑
         </button>
       </div>
 
       {mounted ? (
         <div className="mount-row">
-          <span className="mounted-tag">已挂载到 {mountPoint}</span>
+          <span className="mounted-tag">{t("mount.mountedAt", { mp: mountPoint! })}</span>
           <button className="danger" onClick={doUnmount} disabled={busy}>
-            卸载
+            {t("mount.unmount")}
           </button>
         </div>
       ) : (
-        <div className="mount-form">
-          <label>
-            盘符
-            <select value={drive} onChange={(e) => setDrive(e.target.value)}>
-              {freeLetters.map((l) => (
-                <option key={l} value={l}>
-                  {l}:
-                </option>
-              ))}
-            </select>
-          </label>
-          <label title={PRESETS.find((p) => p.id === preset)?.hint}>
-            性能预设
-            <select value={preset} onChange={(e) => setPreset(e.target.value as Preset)}>
-              {PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="primary" onClick={doMount} disabled={busy || freeLetters.length === 0}>
-            {busy ? "挂载中…" : "挂载"}
+        <>
+          <div className="mount-form">
+            <label>
+              {t("mount.drive")}
+              <select value={drive} onChange={(e) => setDrive(e.target.value)}>
+                {freeLetters.map((l) => (
+                  <option key={l} value={l}>
+                    {l}:
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label title={t(PRESETS.find((p) => p.id === preset)?.hintKey ?? "")}>
+              {t("mount.preset")}
+              <select value={preset} onChange={(e) => changePreset(e.target.value as Preset)}>
+                {PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {t(p.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="primary" onClick={doMount} disabled={busy || freeLetters.length === 0}>
+              {busy ? t("mount.mounting") : t("mount.mount")}
+            </button>
+          </div>
+
+          <button className="link adv-toggle" onClick={() => setAdv((a) => !a)}>
+            {t("mount.advanced")} {adv ? "▲" : "▼"}
           </button>
-        </div>
+          {adv && (
+            <div className="adv-grid">
+              <label>
+                {t("mount.cacheMode")}
+                <select
+                  value={vfs.cacheMode}
+                  onChange={(e) => setVfs({ ...vfs, cacheMode: e.target.value })}
+                >
+                  {CACHE_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("mount.chunkSize")}
+                <input value={vfs.chunkSize} onChange={(e) => setVfs({ ...vfs, chunkSize: e.target.value })} />
+              </label>
+              <label>
+                {t("mount.readAhead")}
+                <input value={vfs.readAhead} onChange={(e) => setVfs({ ...vfs, readAhead: e.target.value })} />
+              </label>
+              <label>
+                {t("mount.dirCacheTime")}
+                <input
+                  value={vfs.dirCacheTime}
+                  onChange={(e) => setVfs({ ...vfs, dirCacheTime: e.target.value })}
+                />
+              </label>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -319,6 +375,7 @@ function AddRemoteModal({
   onCreated: () => void;
   onError: (e: string) => void;
 }) {
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [backendId, setBackendId] = useState(BACKENDS[0].id);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -356,23 +413,21 @@ function AddRemoteModal({
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>添加远程</h2>
+        <h2>{t("add.title")}</h2>
 
         <label className="field">
-          名称
+          {t("add.name")}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="给这个连接起个名字,如 mydrive"
+            placeholder={t("add.namePlaceholder")}
             autoFocus
           />
-          {name && !nameValid && (
-            <small className="hint-err">只能包含字母、数字、下划线、点和连字符</small>
-          )}
+          {name && !nameValid && <small className="hint-err">{t("add.nameInvalid")}</small>}
         </label>
 
         <label className="field">
-          类型
+          {t("add.type")}
           <select
             value={backendId}
             onChange={(e) => {
@@ -382,7 +437,7 @@ function AddRemoteModal({
           >
             {BACKENDS.map((b) => (
               <option key={b.id} value={b.id}>
-                {b.label}
+                {t(b.labelKey)}
               </option>
             ))}
           </select>
@@ -391,7 +446,7 @@ function AddRemoteModal({
         {backend.fields.map((f) => (
           <label className="field" key={f.key}>
             <span>
-              {f.label}
+              {t(f.labelKey)}
               {f.required && <span className="req">*</span>}
             </span>
             <input
@@ -403,20 +458,18 @@ function AddRemoteModal({
           </label>
         ))}
 
-        <p className="oauth-note">
-          Google Drive / OneDrive / Dropbox 等需要浏览器授权的后端将在后续版本支持。
-        </p>
+        <p className="oauth-note">{t("add.oauthNote")}</p>
 
         <div className="modal-actions">
           <button onClick={onClose} disabled={busy}>
-            取消
+            {t("common.cancel")}
           </button>
           <button
             className="primary"
             onClick={submit}
             disabled={busy || !nameValid || !requiredOk || !name}
           >
-            {busy ? "创建中…" : "创建"}
+            {busy ? t("add.creating") : t("add.create")}
           </button>
         </div>
       </div>

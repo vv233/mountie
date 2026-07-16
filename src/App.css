@@ -71,6 +71,29 @@ body {
   font-size: 12px;
 }
 
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.lang {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.lang button {
+  border: none;
+  border-radius: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.lang button.on {
+  background: var(--accent);
+  color: #fff;
+}
 .status {
   display: flex;
   align-items: center;
@@ -211,6 +234,31 @@ body {
 }
 .mount-form .primary {
   margin-left: auto;
+}
+
+.adv-toggle {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.adv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.adv-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.adv-grid input,
+.adv-grid select {
+  width: 100%;
 }
 
 .mount-row {
