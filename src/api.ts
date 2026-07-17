@@ -248,6 +248,7 @@ export const isOAuthBackend = (id: string) => OAUTH_BACKENDS.some((b) => b.id ==
 export const api = {
   rcloneReady: () => invoke<boolean>("rclone_ready"),
   winfspInstalled: () => invoke<boolean>("winfsp_installed"),
+  freeDriveLetters: () => invoke<string[]>("free_drive_letters"),
   listRemotes: () => invoke<RemoteInfo[]>("list_remotes"),
   createRemote: (name: string, kind: string, params: Record<string, string>) =>
     invoke<void>("create_remote", { name, kind, params }),

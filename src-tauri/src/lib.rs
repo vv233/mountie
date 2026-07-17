@@ -93,6 +93,7 @@ pub fn run() {
             rclone::stop_transfer,
             rclone::list_dir,
             rclone::oauth_authorize,
+            rclone::free_drive_letters,
             rclone::winfsp_installed,
             rclone::get_autostart,
             rclone::set_autostart,

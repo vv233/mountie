@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
 import { check, Update } from "@tauri-apps/plugin-updater";
@@ -26,8 +26,6 @@ import "./App.css";
 
 type View = "mount" | "transfer" | "logs";
 
-const ALL_LETTERS = "DEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
 /** Close a modal when Escape is pressed. */
 function useEscClose(onClose: () => void) {
   useEffect(() => {
@@ -54,6 +52,9 @@ export default function App() {
   const [engineDown, setEngineDown] = useState(false);
   const [update, setUpdate] = useState<Update | null>(null);
   const [updating, setUpdating] = useState(false);
+  // Letters actually free on this machine (excludes real disks, USB sticks and
+  // our own live mounts) — the backend checks the filesystem, not just our list.
+  const [freeLetters, setFreeLetters] = useState<string[]>([]);
 
   // Wait for the rclone daemon, then do the first load.
   useEffect(() => {
@@ -101,6 +102,7 @@ export default function App() {
     const id = setInterval(() => {
       api.listMounts().then(setMounts).catch(() => {});
       api.coreStats().then(setStats).catch(() => {});
+      api.freeDriveLetters().then(setFreeLetters).catch(() => {});
     }, 1500);
     return () => clearInterval(id);
   }, [ready]);
@@ -109,16 +111,11 @@ export default function App() {
     try {
       setRemotes(await api.listRemotes());
       setMounts(await api.listMounts());
+      setFreeLetters(await api.freeDriveLetters());
     } catch (e) {
       setError(String(e));
     }
   }
-
-  const usedLetters = useMemo(
-    () => new Set(mounts.map((m) => m.mount_point.replace(":", "").toUpperCase())),
-    [mounts]
-  );
-  const freeLetters = ALL_LETTERS.filter((l) => !usedLetters.has(l));
 
   function mountPointFor(remote: string): string | null {
     const m = mounts.find((x) => x.fs === `${remote}:`);
@@ -324,6 +321,12 @@ function RemoteCard({
   const [busy, setBusy] = useState(false);
   const [about, setAbout] = useState<AboutInfo | null>(null);
   const mounted = mountPoint !== null;
+
+  // The free-letter list arrives asynchronously and changes as drives come and
+  // go, so keep the selection pointing at something actually available.
+  useEffect(() => {
+    if (freeLetters.length && !freeLetters.includes(drive)) setDrive(freeLetters[0]);
+  }, [freeLetters]);
 
   // Show the remote's quota once it's mounted. Not all backends report it —
   // failures just mean we show nothing.

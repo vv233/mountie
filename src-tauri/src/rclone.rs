@@ -323,14 +323,67 @@ fn save_entries(app: &AppHandle, entries: &[MountEntry]) {
 /// deleted remote) are ignored so a single bad entry can't block startup.
 pub async fn restore_mounts(app: &AppHandle) {
     let state = app.state::<RcloneState>();
+    // Track what's free up front and consume as we go, so restoring several
+    // mounts can't hand out the same letter twice.
+    let mut free = free_drive_letters();
     for e in load_entries(app) {
-        let _ = do_mount(&state, &e.remote, &e.drive, &e.preset, e.custom.as_ref()).await;
+        let letter = if letter_is_free(&e.drive) {
+            free.retain(|l| l != &e.drive);
+            e.drive.clone()
+        } else if let Some(alt) = free.first().cloned() {
+            // Something else grabbed the saved letter (a USB stick, say).
+            free.retain(|l| l != &alt);
+            push_log(
+                app,
+                format!(
+                    "drive {}: is in use; restoring {} at {}: instead",
+                    e.drive, e.remote, alt
+                ),
+            );
+            alt
+        } else {
+            push_log(app, format!("no free drive letter to restore {}", e.remote));
+            continue;
+        };
+        let _ = do_mount(&state, &e.remote, &letter, &e.preset, e.custom.as_ref()).await;
     }
 }
 
 // ---------------------------------------------------------------------------
 // Core mount logic, shared by the command and the startup restore
 // ---------------------------------------------------------------------------
+
+/// Whether a drive letter is currently unused by any volume on the system.
+/// Our own mounts appear as real drives, so an active mount is correctly
+/// reported as taken.
+fn letter_is_free(letter: &str) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        !std::path::Path::new(&format!("{letter}:\\")).exists()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = letter;
+        true
+    }
+}
+
+/// Drive letters actually available on this machine — used to populate the
+/// mount form so we never offer a letter that a disk or USB stick already holds.
+#[tauri::command]
+pub fn free_drive_letters() -> Vec<String> {
+    #[cfg(target_os = "windows")]
+    {
+        ('D'..='Z')
+            .map(|c| c.to_string())
+            .filter(|l| letter_is_free(l))
+            .collect()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Vec::new()
+    }
+}
 
 /// Validate a drive letter and return it uppercased without a trailing colon.
 fn normalize_drive(drive: &str) -> Result<String, String> {
@@ -849,6 +902,17 @@ mod tests {
         assert!(normalize_drive("ab").is_err());
         assert!(normalize_drive("1").is_err());
         assert!(normalize_drive(":").is_err());
+    }
+
+    #[test]
+    fn free_drive_letters_never_offers_a_taken_one() {
+        let free = free_drive_letters();
+        // C: is the system volume and is never in range; anything we do offer
+        // must actually be unused right now.
+        assert!(!free.contains(&"C".to_string()));
+        for letter in &free {
+            assert!(letter_is_free(letter), "offered {letter}: but it exists");
+        }
     }
 
     #[test]
