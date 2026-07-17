@@ -35,6 +35,8 @@ pub struct RcloneState {
     pub child: Mutex<Option<CommandChild>>,
     pub logs: Mutex<VecDeque<String>>,
     pub shutting_down: AtomicBool,
+    /// UI language, mirrored from the frontend so native menus match it.
+    pub lang: Mutex<String>,
 }
 
 impl RcloneState {
@@ -52,6 +54,7 @@ impl RcloneState {
             child: Mutex::new(None),
             logs: Mutex::new(VecDeque::with_capacity(LOG_CAP)),
             shutting_down: AtomicBool::new(false),
+            lang: Mutex::new("zh".to_string()),
         }
     }
 }
@@ -347,6 +350,7 @@ pub async fn restore_mounts(app: &AppHandle) {
         };
         let _ = do_mount(&state, &e.remote, &letter, &e.preset, e.custom.as_ref()).await;
     }
+    crate::refresh_tray(app).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -564,10 +568,7 @@ pub async fn delete_remote(
     Ok(())
 }
 
-/// Currently active mounts.
-#[tauri::command]
-pub async fn list_mounts(state: State<'_, RcloneState>) -> Result<Vec<MountInfo>, String> {
-    let resp = rc_call(&state, "mount/listmounts", json!({})).await?;
+fn parse_mounts(resp: &Value) -> Vec<MountInfo> {
     let mut mounts = Vec::new();
     if let Some(arr) = resp.get("mountPoints").and_then(|v| v.as_array()) {
         for m in arr {
@@ -581,7 +582,35 @@ pub async fn list_mounts(state: State<'_, RcloneState>) -> Result<Vec<MountInfo>
             });
         }
     }
-    Ok(mounts)
+    mounts
+}
+
+/// Currently active mounts.
+#[tauri::command]
+pub async fn list_mounts(state: State<'_, RcloneState>) -> Result<Vec<MountInfo>, String> {
+    let resp = rc_call(&state, "mount/listmounts", json!({})).await?;
+    Ok(parse_mounts(&resp))
+}
+
+/// Mounts, for the tray menu. Errors collapse to an empty list — the tray just
+/// shows "nothing mounted" rather than failing.
+pub async fn current_mounts(app: &AppHandle) -> Vec<MountInfo> {
+    let state = app.state::<RcloneState>();
+    match rc_call(&state, "mount/listmounts", json!({})).await {
+        Ok(resp) => parse_mounts(&resp),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Mirror the UI language into the backend so native menus match it.
+#[tauri::command]
+pub async fn set_lang(app: AppHandle, lang: String) -> Result<(), String> {
+    {
+        let state = app.state::<RcloneState>();
+        *state.lang.lock().unwrap() = lang;
+    }
+    crate::refresh_tray(&app).await;
+    Ok(())
 }
 
 /// Mount `remote` at a Windows drive letter using a performance preset, and
@@ -608,6 +637,7 @@ pub async fn mount_remote(
         custom,
     });
     save_entries(&app, &entries);
+    crate::refresh_tray(&app).await;
     Ok(())
 }
 
@@ -622,6 +652,7 @@ pub async fn unmount(
     let mut entries = load_entries(&app);
     entries.retain(|e| e.drive != letter);
     save_entries(&app, &entries);
+    crate::refresh_tray(&app).await;
     Ok(())
 }
 

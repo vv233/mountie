@@ -99,6 +99,11 @@ export default function App() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  // Mirror the language to the backend so the native tray menu matches.
+  useEffect(() => {
+    api.setLang(lang).catch(() => {});
+  }, [lang]);
+
   // Check for a newer release on startup (no-op in dev / offline).
   useEffect(() => {
     check()

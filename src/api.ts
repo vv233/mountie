@@ -266,6 +266,7 @@ export const api = {
   coreStats: () => invoke<CoreStats>("core_stats"),
   remoteAbout: (remote: string) => invoke<AboutInfo>("remote_about", { remote }),
   getLogs: () => invoke<string[]>("get_logs"),
+  setLang: (lang: string) => invoke<void>("set_lang", { lang }),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
   startTransfer: (src: string, dst: string, operation: TransferOp, turbo: boolean, bwlimit: string) =>
