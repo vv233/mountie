@@ -25,6 +25,7 @@ import TransferPanel from "./Transfer";
 import "./App.css";
 
 type View = "mount" | "transfer" | "logs";
+type Theme = "dark" | "light";
 
 /** Close a modal when Escape is pressed. */
 function useEscClose(onClose: () => void) {
@@ -48,6 +49,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [autostart, setAutostart] = useState(false);
   const [view, setView] = useState<View>("mount");
+  const [theme, setTheme] = useState<Theme>(() =>
+    localStorage.getItem("theme") === "light" ? "light" : "dark"
+  );
   const [editRemote, setEditRemote] = useState<RemoteInfo | null>(null);
   const [engineDown, setEngineDown] = useState(false);
   const [update, setUpdate] = useState<Update | null>(null);
@@ -88,6 +92,12 @@ export default function App() {
       un.then((f) => f());
     };
   }, []);
+
+  // Apply and remember the colour theme.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   // Check for a newer release on startup (no-op in dev / offline).
   useEffect(() => {
@@ -164,6 +174,13 @@ export default function App() {
           </div>
         </div>
         <div className="top-right">
+          <button
+            className="theme-btn"
+            title={t("theme.toggle")}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? "☀" : "🌙"}
+          </button>
           <div className="lang">
             <button className={lang === "zh" ? "on" : ""} onClick={() => setLang("zh")}>
               中

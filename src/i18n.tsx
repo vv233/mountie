@@ -13,6 +13,7 @@ const DICT: Record<string, Entry> = {
   "status.ready": { zh: "引擎就绪", en: "Engine ready" },
   "status.starting": { zh: "引擎启动中…", en: "Starting engine…" },
   "status.speedTitle": { zh: "当前总传输速率", en: "Total transfer speed" },
+  "theme.toggle": { zh: "切换主题", en: "Toggle theme" },
 
   "winfsp.missing": { zh: "未检测到 WinFsp,挂载盘符需要它。", en: "WinFsp not found — it is required to mount drives." },
   "winfsp.download": { zh: "前往下载安装", en: "Download & install" },

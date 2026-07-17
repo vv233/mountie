@@ -1,16 +1,42 @@
+/* Dark is the default; [data-theme="light"] is set on <html> by the toggle. */
 :root {
   --bg: #0f1216;
   --surface: #171c22;
   --surface-2: #1e252d;
   --border: #2a323c;
+  --hover: #262e37;
   --text: #e6ebf0;
   --muted: #8a97a6;
   --accent: #3b82f6;
   --accent-hover: #2f6fd6;
   --danger: #ef4444;
+  --danger-text: #fca5a5;
   --ok: #22c55e;
+  --ok-text: #86efac;
   --warn: #f59e0b;
+  --code-bg: #0b0e11;
+  --code-text: #c8d0d8;
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --border: #d8dee5;
+  --hover: #e3e8ee;
+  --text: #1b2430;
+  --muted: #5c6875;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --danger: #dc2626;
+  --danger-text: #b91c1c;
+  --ok: #16a34a;
+  --ok-text: #15803d;
+  --warn: #b45309;
+  --code-bg: #f2f4f7;
+  --code-text: #2c3947;
+  color-scheme: light;
 }
 
 * {
@@ -75,6 +101,11 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+.theme-btn {
+  padding: 4px 9px;
+  font-size: 13px;
+  line-height: 1.4;
 }
 .lang {
   display: flex;
@@ -312,7 +343,7 @@ button {
   transition: background 0.15s, opacity 0.15s;
 }
 button:hover {
-  background: #262e37;
+  background: var(--hover);
 }
 button:disabled {
   opacity: 0.45;
@@ -329,7 +360,7 @@ button.primary:hover {
 button.danger {
   background: transparent;
   border-color: rgba(239, 68, 68, 0.5);
-  color: #fca5a5;
+  color: var(--danger-text);
 }
 button.danger:hover {
   background: rgba(239, 68, 68, 0.12);
@@ -396,7 +427,7 @@ button.link:hover {
   margin-left: 3px;
 }
 .hint-err {
-  color: #fca5a5;
+  color: var(--danger-text);
 }
 .oauth-note {
   font-size: 12px;
@@ -421,11 +452,11 @@ button.link:hover {
   word-break: break-word;
 }
 .test-ok {
-  color: #86efac;
+  color: var(--ok-text);
   background: rgba(34, 197, 94, 0.12);
 }
 .test-err {
-  color: #fca5a5;
+  color: var(--danger-text);
   background: rgba(239, 68, 68, 0.12);
 }
 
@@ -606,7 +637,7 @@ button.link:hover {
   color: var(--ok);
 }
 .err-text {
-  color: #fca5a5;
+  color: var(--danger-text);
   word-break: break-word;
 }
 
@@ -643,7 +674,7 @@ button.link:hover {
 
 /* Logs panel */
 .log-view {
-  background: #0b0e11;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
@@ -651,7 +682,7 @@ button.link:hover {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 12px;
   line-height: 1.55;
-  color: #c8d0d8;
+  color: var(--code-text);
   max-height: 62vh;
   overflow: auto;
   white-space: pre-wrap;
