@@ -256,6 +256,7 @@ export const api = {
     invoke<void>("mount_remote", { remote, drive, preset, custom: custom ?? null }),
   unmount: (mountPoint: string) => invoke<void>("unmount", { mountPoint }),
   coreStats: () => invoke<CoreStats>("core_stats"),
+  getLogs: () => invoke<string[]>("get_logs"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
   startTransfer: (src: string, dst: string, operation: TransferOp, turbo: boolean) =>

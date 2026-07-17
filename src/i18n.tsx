@@ -18,8 +18,21 @@ const DICT: Record<string, Entry> = {
   "winfsp.download": { zh: "前往下载安装", en: "Download & install" },
   "banner.dismiss": { zh: "知道了", en: "Dismiss" },
 
+  "err.winfsp": { zh: "未检测到 WinFsp,请先安装它。", en: "WinFsp not found — install it first." },
+  "err.driveInUse": { zh: "该盘符可能已被占用,换一个试试。", en: "That drive letter may be in use — try another." },
+  "err.connection": {
+    zh: "连不上服务器,请检查地址 / 端口 / 网络。",
+    en: "Can't reach the server — check the address / port / network.",
+  },
+  "err.auth": { zh: "认证失败,请检查用户名 / 密码。", en: "Authentication failed — check the username / password." },
+  "err.oauthTimeout": { zh: "授权超时,请重试。", en: "Authorization timed out — please try again." },
+  "err.oauthNoCred": { zh: "授权未完成,未获得凭据。", en: "Authorization did not complete." },
+  "err.engineDown": { zh: "引擎连接中断,正在重启…", en: "Engine connection lost — restarting…" },
+
   "tab.mount": { zh: "挂载盘符", en: "Mount drives" },
   "tab.transfer": { zh: "直传 / 同步", en: "Transfer / Sync" },
+  "tab.logs": { zh: "日志", en: "Logs" },
+  "logs.empty": { zh: "暂无日志", en: "No logs yet" },
 
   "remotes.title": { zh: "远程配置", en: "Remotes" },
   "remotes.add": { zh: "+ 添加远程", en: "+ Add remote" },
@@ -196,9 +209,11 @@ interface I18nCtx {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  /** Localize a raw backend/rclone error string by pattern. */
+  tErr: (raw: string) => string;
 }
 
-const Ctx = createContext<I18nCtx>({ lang: "zh", setLang: () => {}, t: (k) => k });
+const Ctx = createContext<I18nCtx>({ lang: "zh", setLang: () => {}, t: (k) => k, tErr: (e) => e });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
@@ -218,7 +233,35 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
       return s;
     };
-    return { lang, setLang, t };
+    const tErr = (raw: string): string => {
+      if (raw === "OAUTH_TIMEOUT") return t("err.oauthTimeout");
+      if (raw === "OAUTH_NO_CRED") return t("err.oauthNoCred");
+      const low = raw.toLowerCase();
+      const detail = ` (${raw})`;
+      if (low.includes("winfsp")) return t("err.winfsp") + detail;
+      if (low.includes("not empty") || low.includes("already") || low.includes("in use"))
+        return t("err.driveInUse") + detail;
+      if (
+        low.includes("connection refused") ||
+        low.includes("no such host") ||
+        low.includes("i/o timeout") ||
+        low.includes("dial ") ||
+        low.includes("timeout") ||
+        low.includes("certificate")
+      )
+        return t("err.connection") + detail;
+      if (
+        low.includes("401") ||
+        low.includes("403") ||
+        low.includes("unauthorized") ||
+        low.includes("forbidden") ||
+        low.includes("auth") ||
+        low.includes("login")
+      )
+        return t("err.auth") + detail;
+      return raw;
+    };
+    return { lang, setLang, t, tErr };
   }, [lang]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

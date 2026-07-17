@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { listen } from "@tauri-apps/api/event";
 import {
   api,
   BACKENDS,
@@ -19,12 +20,23 @@ import { useI18n } from "./i18n";
 import TransferPanel from "./Transfer";
 import "./App.css";
 
-type View = "mount" | "transfer";
+type View = "mount" | "transfer" | "logs";
 
 const ALL_LETTERS = "DEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+/** Close a modal when Escape is pressed. */
+function useEscClose(onClose: () => void) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+}
+
 export default function App() {
-  const { t, lang, setLang } = useI18n();
+  const { t, lang, setLang, tErr } = useI18n();
   const [ready, setReady] = useState(false);
   const [winfsp, setWinfsp] = useState(true);
   const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
@@ -35,6 +47,7 @@ export default function App() {
   const [autostart, setAutostart] = useState(false);
   const [view, setView] = useState<View>("mount");
   const [editRemote, setEditRemote] = useState<RemoteInfo | null>(null);
+  const [engineDown, setEngineDown] = useState(false);
 
   // Wait for the rclone daemon, then do the first load.
   useEffect(() => {
@@ -58,6 +71,14 @@ export default function App() {
     poll();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // React to engine crash/restart events from the supervisor.
+  useEffect(() => {
+    const un = listen<string>("engine", (e) => setEngineDown(e.payload === "down"));
+    return () => {
+      un.then((f) => f());
     };
   }, []);
 
@@ -149,9 +170,10 @@ export default function App() {
           </button>
         </div>
       )}
+      {engineDown && <div className="banner warn">{t("err.engineDown")}</div>}
       {error && (
         <div className="banner error">
-          <span className="banner-msg">{error}</span>
+          <span className="banner-msg">{tErr(error)}</span>
           <button className="link" onClick={() => setError(null)}>
             {t("banner.dismiss")}
           </button>
@@ -167,6 +189,9 @@ export default function App() {
           onClick={() => setView("transfer")}
         >
           {t("tab.transfer")}
+        </button>
+        <button className={view === "logs" ? "tab on" : "tab"} onClick={() => setView("logs")}>
+          {t("tab.logs")}
         </button>
       </nav>
 
@@ -199,6 +224,7 @@ export default function App() {
           </section>
         )}
         {view === "transfer" && <TransferPanel remotes={remotes} onError={setError} />}
+        {view === "logs" && <LogsPanel />}
       </main>
 
       <footer className="footer">
@@ -400,7 +426,8 @@ function AddRemoteModal({
   onCreated: () => void;
   onError: (e: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, tErr } = useI18n();
+  useEscClose(onClose);
   const [name, setName] = useState("");
   const [backendId, setBackendId] = useState(BACKENDS[0].id);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -543,7 +570,9 @@ function AddRemoteModal({
         )}
 
         {testMsg && (
-          <p className={testMsg.ok ? "test-ok" : "test-err"}>{testMsg.text}</p>
+          <p className={testMsg.ok ? "test-ok" : "test-err"}>
+            {testMsg.ok ? testMsg.text : tErr(testMsg.text)}
+          </p>
         )}
 
         <div className="modal-actions">
@@ -580,6 +609,7 @@ function EditRemoteModal({
   onError: (e: string) => void;
 }) {
   const { t } = useI18n();
+  useEscClose(onClose);
   // Base protocol/cloud def for this remote's rclone type (id === type).
   const def = BACKENDS.find((b) => b.id === remote.type);
   const fields = def?.fields ?? [];
@@ -664,5 +694,27 @@ function EditRemoteModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function LogsPanel() {
+  const { t } = useI18n();
+  const [logs, setLogs] = useState<string[]>([]);
+
+  useEffect(() => {
+    const load = () => api.getLogs().then(setLogs).catch(() => {});
+    load();
+    const id = setInterval(load, 1500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <section className="logs">
+      {logs.length === 0 ? (
+        <p className="empty">{t("logs.empty")}</p>
+      ) : (
+        <pre className="log-view">{logs.join("\n")}</pre>
+      )}
+    </section>
   );
 }

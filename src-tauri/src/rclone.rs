@@ -3,16 +3,18 @@
 //! mounting, transfers) is delegated to rclone — this module is the thin, typed
 //! bridge the GUI talks to.
 
+use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 /// Loopback address + a non-default port to reduce clashes with a user's own
@@ -20,74 +22,128 @@ use tauri_plugin_shell::ShellExt;
 const RC_HOST: &str = "127.0.0.1";
 const RC_PORT: u16 = 45719;
 
-/// Shared state: how to reach the RC daemon and a handle to kill it on exit.
+/// How many recent log lines to keep for the diagnostics panel.
+const LOG_CAP: usize = 500;
+
+/// Shared state: how to reach the RC daemon, a handle to the child, a recent-log
+/// ring buffer, and a flag so the supervisor knows an exit was intentional.
 pub struct RcloneState {
     pub base_url: String,
     pub user: String,
     pub pass: String,
     pub http: reqwest::Client,
     pub child: Mutex<Option<CommandChild>>,
+    pub logs: Mutex<VecDeque<String>>,
+    pub shutting_down: AtomicBool,
 }
 
 impl RcloneState {
     fn new() -> Self {
-        // Localhost-only, but still generate a per-launch credential so other
-        // local processes can't trivially drive our daemon.
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let pass = format!("{:x}{:x}", nanos, std::process::id());
+        // Loopback-only, but still use a cryptographically-random per-launch
+        // credential so other local processes can't drive our daemon.
+        let mut buf = [0u8; 24];
+        getrandom::getrandom(&mut buf).expect("getrandom failed");
+        let pass = buf.iter().map(|b| format!("{b:02x}")).collect::<String>();
         RcloneState {
             base_url: format!("http://{RC_HOST}:{RC_PORT}"),
             user: "mountie".to_string(),
             pass,
             http: reqwest::Client::new(),
             child: Mutex::new(None),
+            logs: Mutex::new(VecDeque::with_capacity(LOG_CAP)),
+            shutting_down: AtomicBool::new(false),
         }
     }
 }
 
-/// Spawn the rclone rcd sidecar and wait until its RC API answers.
-pub async fn start(app: &AppHandle) -> Result<(), String> {
-    let state = app.state::<RcloneState>();
+/// Append a line to the log ring buffer (and stdout for dev).
+fn push_log(app: &AppHandle, line: String) {
+    println!("{line}");
+    if let Some(state) = app.try_state::<RcloneState>() {
+        let mut logs = state.logs.lock().unwrap();
+        if logs.len() >= LOG_CAP {
+            logs.pop_front();
+        }
+        logs.push_back(line);
+    }
+}
 
-    let sidecar = app
-        .shell()
-        .sidecar("rclone")
-        .map_err(|e| format!("failed to locate bundled rclone: {e}"))?
-        .args([
-            "rcd",
-            "--rc-addr",
-            &format!("{RC_HOST}:{RC_PORT}"),
-            "--rc-user",
-            &state.user,
-            "--rc-pass",
-            &state.pass,
-            "--log-level",
-            "NOTICE",
-        ]);
+/// Start the rclone supervisor: keeps a `rclone rcd` running, restarting it if
+/// it exits unexpectedly, and restoring mounts each time it comes up.
+pub fn start(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { supervise(app).await });
+}
 
-    let (mut rx, child) = sidecar
-        .spawn()
-        .map_err(|e| format!("failed to start rclone: {e}"))?;
+async fn supervise(app: AppHandle) {
+    loop {
+        let (user, pass) = {
+            let s = app.state::<RcloneState>();
+            (s.user.clone(), s.pass.clone())
+        };
 
-    *state.child.lock().unwrap() = Some(child);
+        let spawned = app.shell().sidecar("rclone").and_then(|cmd| {
+            cmd.args([
+                "rcd",
+                "--rc-addr",
+                &format!("{RC_HOST}:{RC_PORT}"),
+                "--rc-user",
+                &user,
+                "--rc-pass",
+                &pass,
+                "--log-level",
+                "NOTICE",
+            ])
+            .spawn()
+        });
 
-    // Drain rclone's stdout/stderr so the pipe never blocks the child.
-    tauri::async_runtime::spawn(async move {
-        use tauri_plugin_shell::process::CommandEvent;
-        while let Some(event) = rx.recv().await {
-            if let CommandEvent::Stderr(line) | CommandEvent::Stdout(line) = event {
-                let text = String::from_utf8_lossy(&line);
-                if !text.trim().is_empty() {
-                    println!("[rclone] {}", text.trim_end());
+        let (mut rx, child) = match spawned {
+            Ok(v) => v,
+            Err(e) => {
+                push_log(&app, format!("failed to start rclone: {e}"));
+                if app.state::<RcloneState>().shutting_down.load(Ordering::SeqCst) {
+                    return;
                 }
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+        };
+        *app.state::<RcloneState>().child.lock().unwrap() = Some(child);
+
+        // Once ready, tell the UI and restore whatever was mounted before.
+        {
+            let app2 = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let st = app2.state::<RcloneState>();
+                if wait_until_ready(&st).await.is_ok() {
+                    let _ = app2.emit("engine", "up");
+                    restore_mounts(&app2).await;
+                }
+            });
+        }
+
+        // Drain output until the process exits.
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(b) | CommandEvent::Stderr(b) => {
+                    let text = String::from_utf8_lossy(&b);
+                    let line = text.trim_end();
+                    if !line.trim().is_empty() {
+                        push_log(&app, format!("[rclone] {line}"));
+                    }
+                }
+                CommandEvent::Terminated(_) => break,
+                _ => {}
             }
         }
-    });
 
-    wait_until_ready(&state).await
+        if app.state::<RcloneState>().shutting_down.load(Ordering::SeqCst) {
+            return;
+        }
+        let _ = app.emit("engine", "down");
+        push_log(&app, "rclone exited unexpectedly; restarting…".to_string());
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 }
 
 /// Poll `core/pid` until the daemon responds (or give up after ~6s).
@@ -96,13 +152,20 @@ async fn wait_until_ready(state: &RcloneState) -> Result<(), String> {
         if rc_call(state, "core/pid", json!({})).await.is_ok() {
             return Ok(());
         }
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
     Err("rclone RC daemon did not become ready in time".to_string())
 }
 
-/// Kill the sidecar. Called on app exit so no orphaned rclone lingers.
+/// Recent log lines for the diagnostics panel.
+#[tauri::command]
+pub async fn get_logs(state: State<'_, RcloneState>) -> Result<Vec<String>, String> {
+    Ok(state.logs.lock().unwrap().iter().cloned().collect())
+}
+
+/// Kill the sidecar and stop the supervisor. Called on app exit.
 pub fn stop(state: &RcloneState) {
+    state.shutting_down.store(true, Ordering::SeqCst);
     if let Some(child) = state.child.lock().unwrap().take() {
         let _ = child.kill();
     }
@@ -161,6 +224,9 @@ pub struct MountEntry {
     pub remote: String,
     pub drive: String,
     pub preset: String,
+    /// Advanced VFS overrides, if the user tuned them; restored verbatim.
+    #[serde(default)]
+    pub custom: Option<VfsOptions>,
 }
 
 /// Performance presets that translate one click into a coherent set of VFS/mount
@@ -198,7 +264,7 @@ fn preset_options(preset: &str, volume_name: &str) -> (Value, Value) {
 }
 
 /// User-tuned VFS options coming from the mount form's advanced panel.
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VfsOptions {
     pub cache_mode: String,
@@ -222,45 +288,6 @@ fn vfs_from_custom(c: &VfsOptions) -> Value {
         m.insert("DirCacheTime".into(), json!(c.dir_cache_time));
     }
     Value::Object(m)
-}
-
-/// Turn rclone's raw mount error into a human-friendly, actionable message.
-fn friendly_mount_error(raw: &str) -> String {
-    let low = raw.to_lowercase();
-    if low.contains("winfsp") {
-        format!("挂载失败:未检测到 WinFsp,请先安装它再挂载。(原始错误:{raw})")
-    } else if low.contains("not empty") || low.contains("already") || low.contains("in use") {
-        format!("挂载失败:该盘符可能已被占用,换一个盘符试试。(原始错误:{raw})")
-    } else if low.contains("connection refused")
-        || low.contains("no such host")
-        || low.contains("dial ")
-        || low.contains("timeout")
-        || low.contains("i/o timeout")
-    {
-        format!("挂载失败:无法连接远程,请检查地址与网络。(原始错误:{raw})")
-    } else if low.contains("401") || low.contains("403") || low.contains("auth") {
-        format!("挂载失败:认证被拒,请检查用户名/密码。(原始错误:{raw})")
-    } else {
-        format!("挂载失败:{raw}")
-    }
-}
-
-/// Friendly message for a failed connection test.
-fn friendly_conn_error(raw: &str) -> String {
-    let low = raw.to_lowercase();
-    if low.contains("401") || low.contains("403") || low.contains("auth") || low.contains("login") {
-        format!("认证失败,请检查用户名/密码。({raw})")
-    } else if low.contains("connection refused")
-        || low.contains("no such host")
-        || low.contains("dial ")
-        || low.contains("timeout")
-        || low.contains("i/o timeout")
-        || low.contains("certificate")
-    {
-        format!("连不上服务器,请检查地址/端口/网络。({raw})")
-    } else {
-        format!("连接失败:{raw}")
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +324,7 @@ fn save_entries(app: &AppHandle, entries: &[MountEntry]) {
 pub async fn restore_mounts(app: &AppHandle) {
     let state = app.state::<RcloneState>();
     for e in load_entries(app) {
-        let _ = do_mount(&state, &e.remote, &e.drive, &e.preset, None).await;
+        let _ = do_mount(&state, &e.remote, &e.drive, &e.preset, e.custom.as_ref()).await;
     }
 }
 
@@ -309,7 +336,7 @@ pub async fn restore_mounts(app: &AppHandle) {
 fn normalize_drive(drive: &str) -> Result<String, String> {
     let letter = drive.trim().trim_end_matches(':').to_uppercase();
     if letter.len() != 1 || !letter.chars().next().unwrap().is_ascii_alphabetic() {
-        return Err(format!("无效的盘符:{drive}"));
+        return Err(format!("invalid drive letter: {drive}"));
     }
     Ok(letter)
 }
@@ -337,8 +364,7 @@ async fn do_mount(
             "mountOpt": mount_opt
         }),
     )
-    .await
-    .map_err(|e| friendly_mount_error(&e))?;
+    .await?;
     Ok(())
 }
 
@@ -419,8 +445,7 @@ pub async fn test_remote(
             "opt": { "nonInteractive": true, "obscure": true }
         }),
     )
-    .await
-    .map_err(|e| friendly_conn_error(&e))?;
+    .await?;
 
     // Try listing the root — proves connectivity + auth.
     let listing = rc_call(
@@ -433,14 +458,12 @@ pub async fn test_remote(
     // Always clean up the throwaway remote.
     let _ = rc_call(&state, "config/delete", json!({ "name": TEMP })).await;
 
-    match listing {
-        Ok(v) => Ok(v
-            .get("list")
+    listing.map(|v| {
+        v.get("list")
             .and_then(|l| l.as_array())
             .map(|a| a.len() as u32)
-            .unwrap_or(0)),
-        Err(e) => Err(friendly_conn_error(&e)),
-    }
+            .unwrap_or(0)
+    })
 }
 
 /// Fetch a remote's stored config (used to pre-fill the edit form). Passwords
@@ -529,6 +552,7 @@ pub async fn mount_remote(
         remote,
         drive: letter,
         preset,
+        custom,
     });
     save_entries(&app, &entries);
     Ok(())
@@ -673,7 +697,7 @@ pub async fn oauth_authorize(app: AppHandle, kind: String) -> Result<String, Str
     loop {
         if Instant::now() >= deadline {
             let _ = child.kill();
-            return Err("授权超时(3 分钟内未完成)。请重试。".to_string());
+            return Err("OAUTH_TIMEOUT".to_string());
         }
         match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
             Ok(Some(event)) => {
@@ -681,7 +705,7 @@ pub async fn oauth_authorize(app: AppHandle, kind: String) -> Result<String, Str
                     CommandEvent::Stdout(b) | CommandEvent::Stderr(b) => b,
                     CommandEvent::Terminated(_) => {
                         return if token.is_empty() {
-                            Err("授权进程已结束但未获得凭据。".to_string())
+                            Err("OAUTH_NO_CRED".to_string())
                         } else {
                             Ok(token.trim().to_string())
                         };

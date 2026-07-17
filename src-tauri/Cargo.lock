@@ -2098,6 +2098,7 @@ dependencies = [
 name = "mountie"
 version = "0.4.0"
 dependencies = [
+ "getrandom 0.2.17",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

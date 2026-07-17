@@ -67,15 +67,9 @@ pub fn run() {
                 });
             }
 
-            // Start rclone in the background, then restore previously-mounted
-            // drives so the app picks up where it left off.
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                match rclone::start(&handle).await {
-                    Ok(()) => rclone::restore_mounts(&handle).await,
-                    Err(e) => eprintln!("failed to start rclone: {e}"),
-                }
-            });
+            // Start the rclone supervisor: it keeps the daemon running (restarting
+            // on crashes) and restores previously-mounted drives when it comes up.
+            rclone::start(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -90,6 +84,7 @@ pub fn run() {
             rclone::mount_remote,
             rclone::unmount,
             rclone::core_stats,
+            rclone::get_logs,
             rclone::start_transfer,
             rclone::transfer_status,
             rclone::stop_transfer,
