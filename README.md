@@ -1,5 +1,9 @@
 # Mountie
 
+[![build](https://github.com/vv233/mountie/actions/workflows/build.yml/badge.svg)](https://github.com/vv233/mountie/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/vv233/mountie)](https://github.com/vv233/mountie/releases)
+[![license](https://img.shields.io/github/license/vv233/mountie)](./LICENSE)
+
 An open-source RaiDrive alternative — a modern GUI that mounts cloud storage and
 remote protocols (WebDAV, SFTP, FTP, S3, …) as Windows drive letters, and moves
 data at full speed. Powered by [rclone](https://github.com/rclone/rclone).
@@ -7,6 +11,10 @@ data at full speed. Powered by [rclone](https://github.com/rclone/rclone).
 > **Architecture: rclone as the engine, Tauri as the shell.** All mounting and
 > transfer work is delegated to the mature, battle-tested rclone; Mountie focuses
 > on making it usable without touching the command line.
+
+![Mountie — mount drives](docs/screenshot-mount.png)
+
+![Mountie — transfer / sync](docs/screenshot-transfer.png)
 
 ## Why
 
