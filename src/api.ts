@@ -259,10 +259,11 @@ export const api = {
   getLogs: () => invoke<string[]>("get_logs"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),
-  startTransfer: (src: string, dst: string, operation: TransferOp, turbo: boolean) =>
-    invoke<number>("start_transfer", { src, dst, operation, turbo }),
+  startTransfer: (src: string, dst: string, operation: TransferOp, turbo: boolean, bwlimit: string) =>
+    invoke<number>("start_transfer", { src, dst, operation, turbo, bwlimit }),
   transferStatus: (jobid: number) => invoke<TransferStatus>("transfer_status", { jobid }),
   stopTransfer: (jobid: number) => invoke<void>("stop_transfer", { jobid }),
+  listDir: (fs: string, path: string) => invoke<string[]>("list_dir", { fs, path }),
 };
 
 export function formatBytes(n?: number): string {

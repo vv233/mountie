@@ -125,6 +125,13 @@ const DICT: Record<string, Entry> = {
   "xfer.copy": { zh: "复制(只增改,不删)", en: "Copy (add/update, never delete)" },
   "xfer.sync": { zh: "同步(目标与源一致,会删多余)", en: "Sync (make destination match source)" },
   "xfer.start": { zh: "开始传输", en: "Start transfer" },
+  "xfer.bwlimit": { zh: "限速", en: "Speed limit" },
+  "xfer.bwlimitPlaceholder": { zh: "如 10M(留空不限速)", en: "e.g. 10M (blank = unlimited)" },
+  "browse.title": { zh: "选择远程文件夹", en: "Choose remote folder" },
+  "browse.here": { zh: "选择当前目录", en: "Use this folder" },
+  "browse.up": { zh: "上级", en: "Up" },
+  "browse.loading": { zh: "加载中…", en: "Loading…" },
+  "browse.empty": { zh: "(无子文件夹)", en: "(no subfolders)" },
   "xfer.turbo": { zh: "大文件自动加速", en: "Auto turbo for large files" },
   "xfer.turboHint": {
     zh: "大文件自动用多线程并行传输,小文件不受影响",

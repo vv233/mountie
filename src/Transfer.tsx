@@ -31,6 +31,23 @@ interface Job {
   status?: TransferStatus;
 }
 
+// --- persisted settings ------------------------------------------------------
+interface Saved {
+  source: Endpoint;
+  dest: Endpoint;
+  op: TransferOp;
+  turbo: boolean;
+  bwlimit: string;
+}
+const STORE_KEY = "mountie.transfer";
+function loadSaved(): Partial<Saved> {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
 export default function TransferPanel({
   remotes,
   onError,
@@ -40,11 +57,20 @@ export default function TransferPanel({
 }) {
   const { t } = useI18n();
   const firstRemote = remotes[0]?.name ?? "";
-  const [source, setSource] = useState<Endpoint>({ kind: "remote", path: "", remote: firstRemote });
-  const [dest, setDest] = useState<Endpoint>({ kind: "local", path: "", remote: firstRemote });
-  const [op, setOp] = useState<TransferOp>("copy");
-  const [turbo, setTurbo] = useState(true);
+  const saved = loadSaved();
+  const [source, setSource] = useState<Endpoint>(
+    saved.source ?? { kind: "remote", path: "", remote: firstRemote }
+  );
+  const [dest, setDest] = useState<Endpoint>(saved.dest ?? { kind: "local", path: "", remote: firstRemote });
+  const [op, setOp] = useState<TransferOp>(saved.op ?? "copy");
+  const [turbo, setTurbo] = useState(saved.turbo ?? true);
+  const [bwlimit, setBwlimit] = useState(saved.bwlimit ?? "");
   const [jobs, setJobs] = useState<Job[]>([]);
+
+  // Remember the form across sessions.
+  useEffect(() => {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ source, dest, op, turbo, bwlimit }));
+  }, [source, dest, op, turbo, bwlimit]);
 
   // Poll live status for every unfinished job once a second.
   const jobsRef = useRef<Job[]>([]);
@@ -71,7 +97,7 @@ export default function TransferPanel({
     }
     if (op === "sync" && !confirm(t("xfer.syncConfirm"))) return;
     try {
-      const id = await api.startTransfer(src, dst, op, turbo);
+      const id = await api.startTransfer(src, dst, op, turbo, bwlimit);
       setJobs((prev) => [{ id, label: `${src}  →  ${dst}`, op }, ...prev]);
     } catch (e) {
       onError(String(e));
@@ -104,6 +130,14 @@ export default function TransferPanel({
               <option value="copy">{t("xfer.copy")}</option>
               <option value="sync">{t("xfer.sync")}</option>
             </select>
+          </label>
+          <label className="xfer-op">
+            {t("xfer.bwlimit")}
+            <input
+              value={bwlimit}
+              placeholder={t("xfer.bwlimitPlaceholder")}
+              onChange={(e) => setBwlimit(e.target.value)}
+            />
           </label>
           <button className="primary" onClick={start}>
             {t("xfer.start")}
@@ -140,8 +174,9 @@ function EndpointEditor({
   onError: (e: string) => void;
 }) {
   const { t } = useI18n();
+  const [browsing, setBrowsing] = useState(false);
 
-  async function browse() {
+  async function browseLocal() {
     try {
       const picked = await open({ directory: true, multiple: false });
       if (typeof picked === "string") onChange({ ...value, kind: "local", path: picked });
@@ -185,6 +220,9 @@ function EndpointEditor({
             value={value.path}
             onChange={(e) => onChange({ ...value, path: e.target.value })}
           />
+          <button disabled={!value.remote} onClick={() => setBrowsing(true)}>
+            {t("xfer.browse")}
+          </button>
         </div>
       ) : (
         <div className="endpoint-body">
@@ -193,9 +231,92 @@ function EndpointEditor({
             value={value.path}
             onChange={(e) => onChange({ ...value, path: e.target.value })}
           />
-          <button onClick={browse}>{t("xfer.browse")}</button>
+          <button onClick={browseLocal}>{t("xfer.browse")}</button>
         </div>
       )}
+
+      {browsing && value.remote && (
+        <FolderBrowser
+          remote={value.remote}
+          initialPath={value.path}
+          onPick={(p) => {
+            onChange({ ...value, path: p });
+            setBrowsing(false);
+          }}
+          onClose={() => setBrowsing(false)}
+          onError={onError}
+        />
+      )}
+    </div>
+  );
+}
+
+function FolderBrowser({
+  remote,
+  initialPath,
+  onPick,
+  onClose,
+  onError,
+}: {
+  remote: string;
+  initialPath: string;
+  onPick: (path: string) => void;
+  onClose: () => void;
+  onError: (e: string) => void;
+}) {
+  const { t } = useI18n();
+  const [path, setPath] = useState((initialPath || "").replace(/^[\\/]+|[\\/]+$/g, ""));
+  const [dirs, setDirs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api
+      .listDir(`${remote}:`, path)
+      .then(setDirs)
+      .catch((e) => {
+        setDirs([]);
+        onError(String(e));
+      })
+      .finally(() => setLoading(false));
+  }, [path]);
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{t("browse.title")}</h2>
+        <div className="browse-path">
+          {remote}:/{path}
+        </div>
+        <div className="browse-list">
+          {path && (
+            <button className="browse-item" onClick={() => setPath(path.split("/").slice(0, -1).join("/"))}>
+              ⬆ {t("browse.up")}
+            </button>
+          )}
+          {loading ? (
+            <p className="empty">{t("browse.loading")}</p>
+          ) : dirs.length === 0 ? (
+            <p className="empty">{t("browse.empty")}</p>
+          ) : (
+            dirs.map((d) => (
+              <button
+                key={d}
+                className="browse-item"
+                onClick={() => setPath(path ? `${path}/${d}` : d)}
+              >
+                📁 {d}
+              </button>
+            ))
+          )}
+        </div>
+        <div className="modal-actions">
+          <button onClick={onClose}>{t("common.cancel")}</button>
+          <button className="primary" onClick={() => onPick(path)}>
+            {t("browse.here")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

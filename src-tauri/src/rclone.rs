@@ -608,22 +608,31 @@ pub async fn start_transfer(
     dst: String,
     operation: String,
     turbo: Option<bool>,
+    bwlimit: Option<String>,
 ) -> Result<u64, String> {
     let endpoint = if operation == "sync" {
         "sync/sync"
     } else {
         "sync/copy"
     };
-    let mut body = json!({ "srcFs": src, "dstFs": dst, "_async": true });
+    let mut config = serde_json::Map::new();
     if turbo.unwrap_or(true) {
         // Auto large-file mode: rclone splits any file at/above the cutoff into
         // parallel streams (small files are untouched), and runs more transfers
         // concurrently. This is per-file automatic — no user action needed.
-        body["_config"] = json!({
-            "MultiThreadStreams": 8,
-            "MultiThreadCutoff": "100Mi",
-            "Transfers": 8
-        });
+        config.insert("MultiThreadStreams".into(), json!(8));
+        config.insert("MultiThreadCutoff".into(), json!("100Mi"));
+        config.insert("Transfers".into(), json!(8));
+    }
+    if let Some(bw) = bwlimit {
+        let bw = bw.trim();
+        if !bw.is_empty() {
+            config.insert("BwLimit".into(), json!(bw));
+        }
+    }
+    let mut body = json!({ "srcFs": src, "dstFs": dst, "_async": true });
+    if !config.is_empty() {
+        body["_config"] = Value::Object(config);
     }
     let resp = rc_call(&state, endpoint, body).await?;
     resp.get("jobid")
@@ -668,6 +677,34 @@ pub async fn transfer_status(
 pub async fn stop_transfer(state: State<'_, RcloneState>, jobid: u64) -> Result<(), String> {
     rc_call(&state, "job/stop", json!({ "jobid": jobid })).await?;
     Ok(())
+}
+
+/// List the sub-directories of `path` on `fs` (e.g. fs="remote:", path="backup").
+/// Used by the transfer panel's folder browser.
+#[tauri::command]
+pub async fn list_dir(
+    state: State<'_, RcloneState>,
+    fs: String,
+    path: String,
+) -> Result<Vec<String>, String> {
+    let resp = rc_call(
+        &state,
+        "operations/list",
+        json!({ "fs": fs, "remote": path, "opt": { "dirsOnly": true, "noModTime": true } }),
+    )
+    .await?;
+    let mut dirs = Vec::new();
+    if let Some(arr) = resp.get("list").and_then(|v| v.as_array()) {
+        for e in arr {
+            if e.get("IsDir").and_then(|v| v.as_bool()).unwrap_or(false) {
+                if let Some(name) = e.get("Name").and_then(|v| v.as_str()) {
+                    dirs.push(name.to_string());
+                }
+            }
+        }
+    }
+    dirs.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    Ok(dirs)
 }
 
 /// Run rclone's OAuth authorization for a backend (e.g. "drive", "onedrive").

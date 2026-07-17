@@ -600,6 +600,37 @@ button.link:hover {
   word-break: break-word;
 }
 
+/* Remote folder browser */
+.browse-path {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 8px 10px;
+  border-radius: 7px;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+.browse-list {
+  max-height: 42vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.browse-item {
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.browse-item:hover {
+  background: var(--surface-2);
+}
+
 /* Logs panel */
 .log-view {
   background: #0b0e11;
