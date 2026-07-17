@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen } from "@tauri-apps/api/event";
+import { check, Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import {
   api,
   BACKENDS,
@@ -48,6 +50,8 @@ export default function App() {
   const [view, setView] = useState<View>("mount");
   const [editRemote, setEditRemote] = useState<RemoteInfo | null>(null);
   const [engineDown, setEngineDown] = useState(false);
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   // Wait for the rclone daemon, then do the first load.
   useEffect(() => {
@@ -80,6 +84,13 @@ export default function App() {
     return () => {
       un.then((f) => f());
     };
+  }, []);
+
+  // Check for a newer release on startup (no-op in dev / offline).
+  useEffect(() => {
+    check()
+      .then(setUpdate)
+      .catch(() => {});
   }, []);
 
   // Poll mounts + live stats while running.
@@ -131,6 +142,18 @@ export default function App() {
     }
   }
 
+  async function installUpdate() {
+    if (!update) return;
+    setUpdating(true);
+    try {
+      await update.downloadAndInstall();
+      await relaunch();
+    } catch (e) {
+      setError(String(e));
+      setUpdating(false);
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -162,6 +185,14 @@ export default function App() {
         </div>
       </header>
 
+      {update && (
+        <div className="banner update">
+          <span className="banner-msg">{t("update.available", { v: update.version })}</span>
+          <button className="link" onClick={installUpdate} disabled={updating}>
+            {updating ? t("update.installing") : t("update.install")}
+          </button>
+        </div>
+      )}
       {!winfsp && (
         <div className="banner warn">
           {t("winfsp.missing")}

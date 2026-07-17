@@ -28,6 +28,9 @@ const DICT: Record<string, Entry> = {
   "err.oauthTimeout": { zh: "授权超时,请重试。", en: "Authorization timed out — please try again." },
   "err.oauthNoCred": { zh: "授权未完成,未获得凭据。", en: "Authorization did not complete." },
   "err.engineDown": { zh: "引擎连接中断,正在重启…", en: "Engine connection lost — restarting…" },
+  "update.available": { zh: "有新版本 {v} 可用", en: "Update available: v{v}" },
+  "update.install": { zh: "更新", en: "Update now" },
+  "update.installing": { zh: "下载中…", en: "Downloading…" },
 
   "tab.mount": { zh: "挂载盘符", en: "Mount drives" },
   "tab.transfer": { zh: "直传 / 同步", en: "Transfer / Sync" },
