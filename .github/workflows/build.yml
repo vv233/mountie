@@ -6,55 +6,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Compile + test on every platform we have code paths for. Producing (and
+# signing) installers is the release workflow's job — doing it here would need
+# the signing secret, which pull requests from forks can't have.
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Fetch rclone sidecar
-        shell: pwsh
-        run: pwsh scripts/fetch-rclone.ps1
-
-      - name: Frontend tests
-        run: npm test
-
-      - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      - name: Build Tauri app
-        run: npm run tauri build
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: mountie-windows
-          path: |
-            src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.exe
-          if-no-files-found: warn
-
-  # Windows is the shipping platform; these jobs keep the macOS/Linux code paths
-  # honest (they compile and the tests pass). Installers are not produced yet.
-  build-unix:
+  check:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -80,11 +40,21 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Fetch rclone sidecar
+      # tauri-build validates the sidecar at compile time, so fetch it first.
+      - name: Fetch rclone sidecar (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: pwsh scripts/fetch-rclone.ps1
+
+      - name: Fetch rclone sidecar (Unix)
+        if: matrix.os != 'windows-latest'
         run: bash scripts/fetch-rclone.sh
 
       - name: Frontend tests
         run: npm test
+
+      - name: Type check
+        run: npx tsc --noEmit
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml

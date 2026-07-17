@@ -1021,10 +1021,15 @@ mod tests {
     }
 
     #[test]
-    fn presets_present_a_network_drive() {
+    fn presets_label_the_volume() {
         let (_, mount) = preset_options("fast", "myremote");
         assert_eq!(mount["VolumeName"], json!("myremote"));
+        // NetworkMode is WinFsp-only: it makes the mount appear as a network
+        // drive on Windows and must not be sent anywhere else.
+        #[cfg(target_os = "windows")]
         assert_eq!(mount["NetworkMode"], json!(true));
+        #[cfg(not(target_os = "windows"))]
+        assert!(mount.get("NetworkMode").is_none());
     }
 
     #[test]
