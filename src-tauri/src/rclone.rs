@@ -764,7 +764,7 @@ pub async fn oauth_authorize(app: AppHandle, kind: String) -> Result<String, Str
             }
             Ok(None) => {
                 return if token.is_empty() {
-                    Err("授权进程已结束但未获得凭据。".to_string())
+                    Err("OAUTH_NO_CRED".to_string())
                 } else {
                     Ok(token.trim().to_string())
                 };
@@ -808,4 +808,68 @@ pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
 /// Register state during app setup.
 pub fn init_state(app: &AppHandle) {
     app.manage(RcloneState::new());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_drive_accepts_letters() {
+        assert_eq!(normalize_drive("x").unwrap(), "X");
+        assert_eq!(normalize_drive("Z:").unwrap(), "Z");
+        assert_eq!(normalize_drive("  m  ").unwrap(), "M");
+    }
+
+    #[test]
+    fn normalize_drive_rejects_invalid() {
+        assert!(normalize_drive("").is_err());
+        assert!(normalize_drive("ab").is_err());
+        assert!(normalize_drive("1").is_err());
+        assert!(normalize_drive(":").is_err());
+    }
+
+    #[test]
+    fn presets_map_to_expected_cache_modes() {
+        assert_eq!(preset_options("fast", "r").0["CacheMode"], json!("full"));
+        assert_eq!(preset_options("balanced", "r").0["CacheMode"], json!("writes"));
+        assert_eq!(preset_options("lowmem", "r").0["CacheMode"], json!("off"));
+        // Unknown preset falls back to the balanced default.
+        assert_eq!(preset_options("???", "r").0["CacheMode"], json!("writes"));
+    }
+
+    #[test]
+    fn presets_present_a_network_drive() {
+        let (_, mount) = preset_options("fast", "myremote");
+        assert_eq!(mount["VolumeName"], json!("myremote"));
+        assert_eq!(mount["NetworkMode"], json!(true));
+    }
+
+    #[test]
+    fn vfs_from_custom_omits_zero_and_empty_sizes() {
+        let c = VfsOptions {
+            cache_mode: "full".into(),
+            chunk_size: "0".into(),
+            read_ahead: "".into(),
+            dir_cache_time: "5m0s".into(),
+        };
+        let v = vfs_from_custom(&c);
+        assert_eq!(v["CacheMode"], json!("full"));
+        assert!(v.get("ChunkSize").is_none());
+        assert!(v.get("ReadAhead").is_none());
+        assert_eq!(v["DirCacheTime"], json!("5m0s"));
+    }
+
+    #[test]
+    fn vfs_from_custom_keeps_real_sizes() {
+        let c = VfsOptions {
+            cache_mode: "writes".into(),
+            chunk_size: "64M".into(),
+            read_ahead: "128M".into(),
+            dir_cache_time: "1m".into(),
+        };
+        let v = vfs_from_custom(&c);
+        assert_eq!(v["ChunkSize"], json!("64M"));
+        assert_eq!(v["ReadAhead"], json!("128M"));
+    }
 }
