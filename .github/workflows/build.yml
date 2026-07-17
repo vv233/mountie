@@ -26,15 +26,15 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Fetch rclone sidecar
+        shell: pwsh
+        run: pwsh scripts/fetch-rclone.ps1
+
       - name: Frontend tests
         run: npm test
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      - name: Fetch rclone sidecar
-        shell: pwsh
-        run: pwsh scripts/fetch-rclone.ps1
 
       - name: Build Tauri app
         run: npm run tauri build
