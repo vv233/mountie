@@ -257,11 +257,12 @@ fn preset_options(preset: &str, volume_name: &str) -> (Value, Value) {
         }),
     };
 
-    // Present as a network drive (RaiDrive-style) with a friendly volume label.
-    let mount = json!({
-        "VolumeName": volume_name,
-        "NetworkMode": true
-    });
+    // NetworkMode is a WinFsp concept — it makes the mount show up as a network
+    // drive, RaiDrive-style. Elsewhere we just label the volume.
+    #[cfg(target_os = "windows")]
+    let mount = json!({ "VolumeName": volume_name, "NetworkMode": true });
+    #[cfg(not(target_os = "windows"))]
+    let mount = json!({ "VolumeName": volume_name });
 
     (vfs, mount)
 }
@@ -389,23 +390,69 @@ pub fn free_drive_letters() -> Vec<String> {
     }
 }
 
-/// Validate a drive letter and return it uppercased without a trailing colon.
-fn normalize_drive(drive: &str) -> Result<String, String> {
-    let letter = drive.trim().trim_end_matches(':').to_uppercase();
-    if letter.len() != 1 || !letter.chars().next().unwrap().is_ascii_alphabetic() {
-        return Err(format!("invalid drive letter: {drive}"));
+/// Validate a mount target: a drive letter on Windows, a directory path on
+/// macOS/Linux. Returned in canonical form (bare uppercase letter, or the path).
+fn normalize_target(target: &str) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let letter = target.trim().trim_end_matches(':').to_uppercase();
+        if letter.len() != 1 || !letter.chars().next().unwrap().is_ascii_alphabetic() {
+            return Err(format!("invalid drive letter: {target}"));
+        }
+        Ok(letter)
     }
-    Ok(letter)
+    #[cfg(not(target_os = "windows"))]
+    {
+        let path = target.trim();
+        if path.is_empty() {
+            return Err("a mount point path is required".to_string());
+        }
+        Ok(path.to_string())
+    }
+}
+
+/// What rclone should be told to mount at: "X:" on Windows, the path elsewhere.
+fn mount_point_of(target: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        format!("{target}:")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        target.to_string()
+    }
+}
+
+/// Which platform we're on, so the UI can ask for a drive letter or a folder.
+#[tauri::command]
+pub fn platform() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        "windows".to_string()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "macos".to_string()
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        "linux".to_string()
+    }
 }
 
 async fn do_mount(
     state: &RcloneState,
     remote: &str,
-    letter: &str,
+    target: &str,
     preset: &str,
     custom: Option<&VfsOptions>,
 ) -> Result<(), String> {
-    let mount_point = format!("{letter}:");
+    let mount_point = mount_point_of(target);
+    // Unix mount points must exist as a directory before rclone can use them.
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::fs::create_dir_all(&mount_point);
+    }
     let (default_vfs, mount_opt) = preset_options(preset, remote);
     let vfs_opt = match custom {
         Some(c) => vfs_from_custom(c),
@@ -624,15 +671,15 @@ pub async fn mount_remote(
     preset: String,
     custom: Option<VfsOptions>,
 ) -> Result<(), String> {
-    let letter = normalize_drive(&drive)?;
-    do_mount(&state, &remote, &letter, &preset, custom.as_ref()).await?;
+    let target = normalize_target(&drive)?;
+    do_mount(&state, &remote, &target, &preset, custom.as_ref()).await?;
 
     let mut entries = load_entries(&app);
-    // One mount per remote and per drive letter.
-    entries.retain(|e| e.drive != letter && e.remote != remote);
+    // One mount per remote and per target.
+    entries.retain(|e| e.drive != target && e.remote != remote);
     entries.push(MountEntry {
         remote,
-        drive: letter,
+        drive: target,
         preset,
         custom,
     });
@@ -880,17 +927,23 @@ pub async fn oauth_authorize(app: AppHandle, kind: String) -> Result<String, Str
     }
 }
 
-/// Best-effort check for WinFsp, which rclone needs to mount on Windows.
+/// Best-effort check for the userspace filesystem driver rclone needs to mount:
+/// WinFsp on Windows, macFUSE on macOS, FUSE on Linux.
 #[tauri::command]
-pub fn winfsp_installed() -> bool {
+pub fn fs_driver_ready() -> bool {
     #[cfg(target_os = "windows")]
     {
         std::path::Path::new(r"C:\Program Files (x86)\WinFsp\bin").exists()
             || std::path::Path::new(r"C:\Program Files\WinFsp\bin").exists()
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        true
+        std::path::Path::new("/Library/Filesystems/macfuse.fs").exists()
+            || std::path::Path::new("/usr/local/lib/libosxfuse.2.dylib").exists()
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        std::path::Path::new("/dev/fuse").exists()
     }
 }
 
@@ -920,19 +973,31 @@ pub fn init_state(app: &AppHandle) {
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "windows")]
     #[test]
-    fn normalize_drive_accepts_letters() {
-        assert_eq!(normalize_drive("x").unwrap(), "X");
-        assert_eq!(normalize_drive("Z:").unwrap(), "Z");
-        assert_eq!(normalize_drive("  m  ").unwrap(), "M");
+    fn normalize_target_accepts_drive_letters() {
+        assert_eq!(normalize_target("x").unwrap(), "X");
+        assert_eq!(normalize_target("Z:").unwrap(), "Z");
+        assert_eq!(normalize_target("  m  ").unwrap(), "M");
+        assert_eq!(mount_point_of("X"), "X:");
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
-    fn normalize_drive_rejects_invalid() {
-        assert!(normalize_drive("").is_err());
-        assert!(normalize_drive("ab").is_err());
-        assert!(normalize_drive("1").is_err());
-        assert!(normalize_drive(":").is_err());
+    fn normalize_target_rejects_invalid_letters() {
+        assert!(normalize_target("").is_err());
+        assert!(normalize_target("ab").is_err());
+        assert!(normalize_target("1").is_err());
+        assert!(normalize_target(":").is_err());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn normalize_target_accepts_paths() {
+        assert_eq!(normalize_target("/mnt/remote").unwrap(), "/mnt/remote");
+        assert_eq!(normalize_target("  /tmp/x  ").unwrap(), "/tmp/x");
+        assert_eq!(mount_point_of("/mnt/remote"), "/mnt/remote");
+        assert!(normalize_target("   ").is_err());
     }
 
     #[test]

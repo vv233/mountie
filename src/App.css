@@ -271,6 +271,19 @@ body {
 .mount-form select {
   min-width: 66px;
 }
+/* Non-Windows: the mount target is a folder path, not a letter. */
+.target-field {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.target-row {
+  display: flex;
+  gap: 6px;
+}
+.target-row input {
+  flex: 1;
+  min-width: 0;
+}
 .mount-form .primary {
   margin-left: auto;
 }

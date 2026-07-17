@@ -40,6 +40,9 @@ export interface TransferStatus {
 
 export type TransferOp = "copy" | "sync";
 
+/** Host OS — decides whether a mount target is a drive letter or a folder. */
+export type Platform = "windows" | "macos" | "linux";
+
 export type Preset = "fast" | "balanced" | "lowmem";
 
 export const PRESETS: { id: Preset; labelKey: string; hintKey: string }[] = [
@@ -247,7 +250,8 @@ export const isOAuthBackend = (id: string) => OAUTH_BACKENDS.some((b) => b.id ==
 
 export const api = {
   rcloneReady: () => invoke<boolean>("rclone_ready"),
-  winfspInstalled: () => invoke<boolean>("winfsp_installed"),
+  fsDriverReady: () => invoke<boolean>("fs_driver_ready"),
+  platform: () => invoke<Platform>("platform"),
   freeDriveLetters: () => invoke<string[]>("free_drive_letters"),
   listRemotes: () => invoke<RemoteInfo[]>("list_remotes"),
   createRemote: (name: string, kind: string, params: Record<string, string>) =>

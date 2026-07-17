@@ -12,6 +12,7 @@ Prerequisites: [Node.js](https://nodejs.org/), [Rust](https://rustup.rs/), and
 ```powershell
 npm install
 pwsh scripts/fetch-rclone.ps1   # download the bundled rclone sidecar
+                                # macOS/Linux: bash scripts/fetch-rclone.sh
 npm run tauri dev
 ```
 

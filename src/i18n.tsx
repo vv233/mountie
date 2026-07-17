@@ -15,8 +15,19 @@ const DICT: Record<string, Entry> = {
   "status.speedTitle": { zh: "当前总传输速率", en: "Total transfer speed" },
   "theme.toggle": { zh: "切换主题", en: "Toggle theme" },
 
-  "winfsp.missing": { zh: "未检测到 WinFsp,挂载盘符需要它。", en: "WinFsp not found — it is required to mount drives." },
-  "winfsp.download": { zh: "前往下载安装", en: "Download & install" },
+  "fsdriver.missing.windows": {
+    zh: "未检测到 WinFsp,挂载盘符需要它。",
+    en: "WinFsp not found — it is required to mount drives.",
+  },
+  "fsdriver.missing.macos": {
+    zh: "未检测到 macFUSE,挂载需要它。",
+    en: "macFUSE not found — it is required to mount.",
+  },
+  "fsdriver.missing.linux": {
+    zh: "未检测到 FUSE,挂载需要它 —— 请用包管理器安装(如 apt install fuse3)。",
+    en: "FUSE not found — install it with your package manager (e.g. apt install fuse3).",
+  },
+  "fsdriver.download": { zh: "前往下载安装", en: "Download & install" },
   "banner.dismiss": { zh: "知道了", en: "Dismiss" },
 
   "err.winfsp": { zh: "未检测到 WinFsp,请先安装它。", en: "WinFsp not found — install it first." },
@@ -56,6 +67,8 @@ const DICT: Record<string, Entry> = {
   "edit.passKeep": { zh: "留空则保持不变", en: "Leave blank to keep current" },
 
   "mount.drive": { zh: "盘符", en: "Drive" },
+  "mount.target": { zh: "挂载点", en: "Mount point" },
+  "mount.targetPlaceholder": { zh: "如 /mnt/mydrive", en: "e.g. /mnt/mydrive" },
   "mount.preset": { zh: "性能预设", en: "Preset" },
   "mount.mount": { zh: "挂载", en: "Mount" },
   "mount.mounting": { zh: "挂载中…", en: "Mounting…" },

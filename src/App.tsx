@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -12,6 +13,7 @@ import {
   formatSpeed,
   isOAuthBackend,
   OAUTH_BACKENDS,
+  Platform,
   PRESETS,
   PRESET_DEFAULTS,
   Preset,
@@ -41,7 +43,8 @@ function useEscClose(onClose: () => void) {
 export default function App() {
   const { t, lang, setLang, tErr } = useI18n();
   const [ready, setReady] = useState(false);
-  const [winfsp, setWinfsp] = useState(true);
+  const [fsReady, setFsReady] = useState(true);
+  const [plat, setPlat] = useState<Platform>("windows");
   const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
   const [mounts, setMounts] = useState<MountInfo[]>([]);
   const [stats, setStats] = useState<CoreStats | null>(null);
@@ -69,7 +72,8 @@ export default function App() {
         if (cancelled) return;
         if (ok) {
           setReady(true);
-          api.winfspInstalled().then(setWinfsp);
+          api.fsDriverReady().then(setFsReady).catch(() => {});
+          api.platform().then(setPlat).catch(() => {});
           api.getAutostart().then(setAutostart).catch(() => {});
           refresh();
           return;
@@ -214,12 +218,21 @@ export default function App() {
           </button>
         </div>
       )}
-      {!winfsp && (
+      {!fsReady && (
         <div className="banner warn">
-          {t("winfsp.missing")}
-          <button className="link" onClick={() => openUrl("https://winfsp.dev/rel/")}>
-            {t("winfsp.download")}
-          </button>
+          <span className="banner-msg">{t(`fsdriver.missing.${plat}`)}</span>
+          {plat !== "linux" && (
+            <button
+              className="link"
+              onClick={() =>
+                openUrl(
+                  plat === "macos" ? "https://macfuse.github.io/" : "https://winfsp.dev/rel/"
+                )
+              }
+            >
+              {t("fsdriver.download")}
+            </button>
+          )}
         </div>
       )}
       {engineDown && <div className="banner warn">{t("err.engineDown")}</div>}
@@ -266,6 +279,7 @@ export default function App() {
                   remote={r}
                   mountPoint={mountPointFor(r.name)}
                   freeLetters={freeLetters}
+                  plat={plat}
                   onDelete={() => handleDelete(r.name)}
                   onEdit={() => setEditRemote(r)}
                   onChanged={refresh}
@@ -322,6 +336,7 @@ function RemoteCard({
   remote,
   mountPoint,
   freeLetters,
+  plat,
   onDelete,
   onEdit,
   onChanged,
@@ -330,13 +345,15 @@ function RemoteCard({
   remote: RemoteInfo;
   mountPoint: string | null;
   freeLetters: string[];
+  plat: Platform;
   onDelete: () => void;
   onEdit: () => void;
   onChanged: () => void;
   onError: (e: string) => void;
 }) {
   const { t } = useI18n();
-  const [drive, setDrive] = useState(freeLetters[0] ?? "Z");
+  // A drive letter on Windows, a folder path elsewhere.
+  const [drive, setDrive] = useState("");
   const [preset, setPreset] = useState<Preset>("balanced");
   const [adv, setAdv] = useState(false);
   const [vfs, setVfs] = useState<VfsOptions>(PRESET_DEFAULTS.balanced);
@@ -344,11 +361,21 @@ function RemoteCard({
   const [about, setAbout] = useState<AboutInfo | null>(null);
   const mounted = mountPoint !== null;
 
-  // The free-letter list arrives asynchronously and changes as drives come and
-  // go, so keep the selection pointing at something actually available.
+  // On Windows the free-letter list arrives asynchronously and changes as drives
+  // come and go, so keep the selection pointing at something actually available.
   useEffect(() => {
+    if (plat !== "windows") return;
     if (freeLetters.length && !freeLetters.includes(drive)) setDrive(freeLetters[0]);
-  }, [freeLetters]);
+  }, [freeLetters, plat]);
+
+  async function pickFolder() {
+    try {
+      const picked = await open({ directory: true, multiple: false });
+      if (typeof picked === "string") setDrive(picked);
+    } catch (e) {
+      onError(String(e));
+    }
+  }
 
   // Show the remote's quota once it's mounted. Not all backends report it —
   // failures just mean we show nothing.
@@ -433,16 +460,30 @@ function RemoteCard({
       ) : (
         <>
           <div className="mount-form">
-            <label>
-              {t("mount.drive")}
-              <select value={drive} onChange={(e) => setDrive(e.target.value)}>
-                {freeLetters.map((l) => (
-                  <option key={l} value={l}>
-                    {l}:
-                  </option>
-                ))}
-              </select>
-            </label>
+            {plat === "windows" ? (
+              <label>
+                {t("mount.drive")}
+                <select value={drive} onChange={(e) => setDrive(e.target.value)}>
+                  {freeLetters.map((l) => (
+                    <option key={l} value={l}>
+                      {l}:
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="target-field">
+                {t("mount.target")}
+                <div className="target-row">
+                  <input
+                    value={drive}
+                    placeholder={t("mount.targetPlaceholder")}
+                    onChange={(e) => setDrive(e.target.value)}
+                  />
+                  <button onClick={pickFolder}>{t("xfer.browse")}</button>
+                </div>
+              </label>
+            )}
             <label title={t(PRESETS.find((p) => p.id === preset)?.hintKey ?? "")}>
               {t("mount.preset")}
               <select value={preset} onChange={(e) => changePreset(e.target.value as Preset)}>
@@ -453,7 +494,11 @@ function RemoteCard({
                 ))}
               </select>
             </label>
-            <button className="primary" onClick={doMount} disabled={busy || freeLetters.length === 0}>
+            <button
+              className="primary"
+              onClick={doMount}
+              disabled={busy || !drive.trim()}
+            >
               {busy ? t("mount.mounting") : t("mount.mount")}
             </button>
           </div>

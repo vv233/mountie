@@ -106,10 +106,14 @@ pub fn run() {
                 .on_menu_event(|app, event| {
                     let id = event.id().as_ref().to_string();
                     if let Some(mount_point) = id.strip_prefix("open:") {
-                        // Open the mounted drive in the file manager.
-                        let _ = app
-                            .opener()
-                            .open_path(format!("{mount_point}\\"), None::<&str>);
+                        // Open the mount in the file manager. On Windows the
+                        // mount point is "X:" and needs a trailing separator to
+                        // open the drive root; elsewhere it's already a path.
+                        #[cfg(target_os = "windows")]
+                        let path = format!("{mount_point}\\");
+                        #[cfg(not(target_os = "windows"))]
+                        let path = mount_point.to_string();
+                        let _ = app.opener().open_path(path, None::<&str>);
                     } else if id == "show" {
                         show_main(app);
                     } else if id == "quit" {
@@ -164,7 +168,8 @@ pub fn run() {
             rclone::list_dir,
             rclone::oauth_authorize,
             rclone::free_drive_letters,
-            rclone::winfsp_installed,
+            rclone::platform,
+            rclone::fs_driver_ready,
             rclone::get_autostart,
             rclone::set_autostart,
             rclone::set_lang,

@@ -71,8 +71,11 @@ download link if it is missing.
 ## Roadmap
 
 - [ ] Even more backends (Google Photos, Proton Drive, …)
-- [ ] Signed installers
-- [ ] Cross-platform (macOS / Linux)
+- [ ] Signed installers (today's are unsigned, so SmartScreen warns)
+- [ ] macOS / Linux installers — the platform code paths are in place (mount
+      points instead of drive letters, macFUSE/FUSE detection) and CI compiles
+      and tests them, but only Windows ships installers and the mount flow has
+      not been exercised on those platforms yet
 
 ## Tech stack
 
@@ -93,7 +96,7 @@ Prerequisites: [Node.js](https://nodejs.org/), [Rust](https://rustup.rs/), and
 npm install
 
 # 2. Fetch the rclone binary into the sidecar location (binaries/ is gitignored)
-pwsh scripts/fetch-rclone.ps1
+pwsh scripts/fetch-rclone.ps1     # macOS/Linux: bash scripts/fetch-rclone.sh
 
 # 3. Run in development
 npm run tauri dev
