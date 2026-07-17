@@ -59,6 +59,7 @@ const DICT: Record<string, Entry> = {
   "mount.mount": { zh: "挂载", en: "Mount" },
   "mount.mounting": { zh: "挂载中…", en: "Mounting…" },
   "mount.mountedAt": { zh: "已挂载到 {mp}", en: "Mounted at {mp}" },
+  "mount.capacity": { zh: "{free} 可用 / 共 {total}", en: "{free} free of {total}" },
   "mount.unmount": { zh: "卸载", en: "Unmount" },
   "mount.advanced": { zh: "高级调优", en: "Advanced tuning" },
   "mount.cacheMode": { zh: "缓存模式", en: "Cache mode" },

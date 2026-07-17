@@ -4,9 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import {
+  AboutInfo,
   api,
   BACKENDS,
   CACHE_MODES,
+  formatBytes,
   formatSpeed,
   isOAuthBackend,
   OAUTH_BACKENDS,
@@ -320,7 +322,21 @@ function RemoteCard({
   const [adv, setAdv] = useState(false);
   const [vfs, setVfs] = useState<VfsOptions>(PRESET_DEFAULTS.balanced);
   const [busy, setBusy] = useState(false);
+  const [about, setAbout] = useState<AboutInfo | null>(null);
   const mounted = mountPoint !== null;
+
+  // Show the remote's quota once it's mounted. Not all backends report it —
+  // failures just mean we show nothing.
+  useEffect(() => {
+    if (!mounted) {
+      setAbout(null);
+      return;
+    }
+    api
+      .remoteAbout(remote.name)
+      .then(setAbout)
+      .catch(() => setAbout(null));
+  }, [mounted, remote.name]);
 
   function changePreset(p: Preset) {
     setPreset(p);
@@ -374,7 +390,17 @@ function RemoteCard({
 
       {mounted ? (
         <div className="mount-row">
-          <span className="mounted-tag">{t("mount.mountedAt", { mp: mountPoint! })}</span>
+          <div>
+            <span className="mounted-tag">{t("mount.mountedAt", { mp: mountPoint! })}</span>
+            {about?.total != null && about?.free != null && (
+              <div className="capacity">
+                {t("mount.capacity", {
+                  free: formatBytes(about.free),
+                  total: formatBytes(about.total),
+                })}
+              </div>
+            )}
+          </div>
           <button className="danger" onClick={doUnmount} disabled={busy}>
             {t("mount.unmount")}
           </button>

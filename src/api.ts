@@ -11,6 +11,13 @@ export interface MountInfo {
   mount_point: string;
 }
 
+/** Storage quota; fields are null for backends that don't report it. */
+export interface AboutInfo {
+  total: number | null;
+  used: number | null;
+  free: number | null;
+}
+
 export interface CoreStats {
   bytes?: number;
   speed?: number; // bytes/sec
@@ -256,6 +263,7 @@ export const api = {
     invoke<void>("mount_remote", { remote, drive, preset, custom: custom ?? null }),
   unmount: (mountPoint: string) => invoke<void>("unmount", { mountPoint }),
   coreStats: () => invoke<CoreStats>("core_stats"),
+  remoteAbout: (remote: string) => invoke<AboutInfo>("remote_about", { remote }),
   getLogs: () => invoke<string[]>("get_logs"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => invoke<void>("set_autostart", { enabled }),

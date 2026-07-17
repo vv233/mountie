@@ -86,6 +86,7 @@ pub fn run() {
             rclone::mount_remote,
             rclone::unmount,
             rclone::core_stats,
+            rclone::remote_about,
             rclone::get_logs,
             rclone::start_transfer,
             rclone::transfer_status,

@@ -278,6 +278,12 @@ body {
   color: var(--ok);
   font-weight: 500;
 }
+.capacity {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Inputs & buttons */
 input,

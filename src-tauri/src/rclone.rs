@@ -578,6 +578,28 @@ pub async fn core_stats(state: State<'_, RcloneState>) -> Result<Value, String> 
     rc_call(&state, "core/stats", json!({})).await
 }
 
+/// Storage quota for a remote. Not every backend supports this — callers should
+/// treat an error (or missing fields) as "unknown" and simply show nothing.
+#[derive(Serialize)]
+pub struct AboutInfo {
+    pub total: Option<u64>,
+    pub used: Option<u64>,
+    pub free: Option<u64>,
+}
+
+#[tauri::command]
+pub async fn remote_about(
+    state: State<'_, RcloneState>,
+    remote: String,
+) -> Result<AboutInfo, String> {
+    let v = rc_call(&state, "operations/about", json!({ "fs": format!("{remote}:") })).await?;
+    Ok(AboutInfo {
+        total: v.get("total").and_then(|x| x.as_u64()),
+        used: v.get("used").and_then(|x| x.as_u64()),
+        free: v.get("free").and_then(|x| x.as_u64()),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Direct transfer / sync — the "fast" path that bypasses the mount layer and
 // lets rclone saturate the connection with its own concurrency.
