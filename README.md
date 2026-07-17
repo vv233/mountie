@@ -51,6 +51,12 @@ download link if it is missing.
 - **One-click mount** with a drive letter and a performance preset (**Fast /
   Balanced / Low-memory**), plus an advanced panel to fine-tune the VFS options.
 - **Mount persistence** — mounted drives are remembered and restored on next launch.
+- **Capacity at a glance** — mounted remotes show free/total space when the backend
+  reports it.
+- **Auto-update** — new releases are detected in-app and install with one click.
+- **Self-healing engine** — if the rclone daemon ever dies it is restarted
+  automatically and your mounts are restored.
+- **Logs tab** — recent rclone output, for when something needs diagnosing.
 - **System tray** — closing the window hides to the tray so mounts stay available;
   quit from the tray menu. Optional **launch at login**.
 - **Direct transfer / sync panel** — `rclone copy` / `sync` between a remote and a
@@ -116,8 +122,8 @@ Pushing a version tag builds the Windows installers and publishes them to a
 GitHub Release (created as a draft for review):
 
 ```powershell
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 The `.github/workflows/release.yml` workflow uses
